@@ -1,0 +1,73 @@
+# NPT Bulk Equilibration - Phase 2: NPT Equilibration (Template)
+# Purpose: Equilibrate box size and density at P=1 atm, T=300K
+# Duration: 500 ps (500,000 steps @ 1 fs/step)
+# NOTE: Replace ${model_path} with actual model file path before use
+# Reference: stage13corr MACE-OFF23 protocol
+# Date: 2026-03-27
+
+units               metal
+atom_style          molecular
+atom_modify         map yes
+newton              on
+dimension           3
+boundary            p p p
+
+variable            species1         string "C"
+variable            species2         string "N"
+variable            species3         string "O"
+variable            species4         string "H"
+
+# Thermostat / barostat parameters (metal units: ps, bar)
+variable            T                equal 300.0
+variable            P                equal 1.01325
+variable            dt               equal 0.001
+variable            tdamp            equal 0.1
+variable            pdamp            equal 1.0
+
+read_restart        restart_npt_phase1_warmup.lammps
+timestep            ${dt}
+
+# MACE-OFF23 ML potential (unified descriptor interface)
+pair_style          mliap unified ${model_path} 0
+pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
+
+# Group definitions
+group               solute molecule 1
+group               solvent subtract all solute
+
+# Freeze solute (zero velocity, no forces applied)
+fix                 freeze_solute solute setforce 0.0 0.0 0.0
+
+# Compute temperatures separately
+compute             t_solute  solute temp
+compute             t_solvent solvent temp
+
+# ===== NPT EQUILIBRATION (500 ps) =====
+print ">>> Phase 2: NPT Equilibration (300K, 1 atm, 500 ps)"
+
+# Initialize velocities at 300K
+velocity            all create ${T} 987654
+
+# NPT: isotropic pressure coupling
+# Thermostat damping: 0.1 ps, Barostat damping: 1.0 ps
+fix                 npt_eq all npt temp ${T} ${T} ${tdamp} iso ${P} ${P} ${pdamp}
+fix                 rmom   all momentum 10 linear 1 1 1
+
+# Thermodynamic output every 1000 steps (1 ps)
+thermo_style        custom step time temp c_t_solute c_t_solvent etotal epair press vol
+thermo              1000
+thermo_modify       flush yes
+
+# Dump full trajectory every 1000 steps
+dump                traj_eq all atom 1000 traj_bulk_npt_phase2_eq.dump
+
+# Restart checkpoints every 50,000 steps
+restart             50000 restart_npt_phase2_eq_a.lammps restart_npt_phase2_eq_b.lammps
+
+# Run NPT equilibration
+run                 500000
+
+print ">>> Phase 2 Complete"
+
+# Write final restart for next phase
+write_restart       restart_npt_phase2_eq_final.lammps

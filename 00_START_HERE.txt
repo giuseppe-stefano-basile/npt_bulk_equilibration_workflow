@@ -1,0 +1,244 @@
+================================================================================
+  NPT BULK EQUILIBRATION WORKFLOW - START HERE
+================================================================================
+
+Location: ./npt_bulk_equilibration_workflow/
+Status: ✅ READY TO USE
+Date: 2026-03-24
+
+================================================================================
+WHAT THIS DOES
+================================================================================
+
+Generates two production-ready systems from identical NPT-equilibrated bulk:
+
+  1. NPBC SPHERE (R=15 Å)
+     → For cavity/reflect + frozen mean-field bias
+     → Output: alanine_cavity_R15_from_npt.data
+
+  2. PBC CUBE (equiv. volume ≈ 24.2 Å edge)
+     → For periodic NVT/NPT production
+     → Output: alanine_pbc_from_npt.data
+
+Both at target density: 0.037235960250849326 mol/Å³ (from stage13)
+
+================================================================================
+QUICK START (3 STEPS)
+================================================================================
+
+1. CONFIGURE (if needed)
+   $ cat configs/config_npt_bulk.env
+   (Already set to correct density - usually no changes needed)
+
+2. RUN
+   $ bash run_workflow.sh
+   (Generates systems, runs 3-phase NPT, extracts sphere/cube)
+   Duration: ~2.5–3 hours on GPU
+
+3. GET OUTPUTS
+   $ ls runs/data/
+   ✓ alanine_cavity_R15_from_npt.data     (NPBC sphere)
+   ✓ alanine_pbc_from_npt.data            (PBC cube)
+
+================================================================================
+DOCUMENTATION
+================================================================================
+
+START WITH (pick one):
+
+  📖 QUICK_START.md          ← 30-second overview
+  📖 USER_GUIDE.md           ← Step-by-step guide
+  📖 README.md               ← Full technical details
+
+REFERENCE:
+
+  🔧 IMPLEMENTATION_SUMMARY.md  ← Design decisions
+  🔍 00_START_HERE.txt          ← This file
+
+================================================================================
+FILES PROVIDED
+================================================================================
+
+configs/
+  └─ config_npt_bulk.env          All parameters (density, runtime, etc.)
+
+scripts/
+  ├─ generate_bulk_alanine_npt.py     Build bulk system (3800 + ala)
+  ├─ extract_sphere_cube.py           Extract sphere/cube from NPT
+  └─ run_workflow.sh                  Master launcher
+
+input_templates/
+  ├─ 01_minimize_warmup_npt.mace       Phase 1: minimize + warmup
+  ├─ 02_npt_equilibration.mace         Phase 2: NPT equilibration
+  └─ 03_npt_production.mace            Phase 3: NPT production
+
+analysis_tools/
+  └─ analyze_npt_convergence.py       Check convergence from logs
+
+systems/
+  └─ ala2_seed.pdb                    Alanine dipeptide structure
+
+HELPERS:
+  ├─ run_workflow.sh                 Execute full pipeline
+  ├─ package_for_leonardo.sh         Create transfer package
+  ├─ submit_leonardo.sh              SLURM template (created on package)
+  └─ runs/                           (created during workflow)
+     ├─ data/                        Output systems
+     └─ logs/                        LAMMPS logs & diagnostics
+
+================================================================================
+FOR LEONARDO BOOSTER
+================================================================================
+
+LOCAL MACHINE:
+  $ bash package_for_leonardo.sh
+  Output: /tmp/npt_workflow_leonardo_*.tar.gz (~50 MB)
+
+TRANSFER:
+  $ scp /tmp/npt_workflow_leonardo_*.tar.gz utente@leonardo.cineca.it:/work/
+
+ON LEONARDO:
+  $ tar xzf npt_workflow_leonardo_*.tar.gz
+  $ cd npt_bulk_equilibration_workflow
+  $ sbatch submit_leonardo.sh
+
+MONITOR:
+  $ tail -f runs/logs/phase*.log
+
+================================================================================
+KEY PARAMETERS
+================================================================================
+
+Target Density (LOCKED):
+  mol/Å³:    0.037235960250849326
+  g/cm³:     1.11391659
+  Source:    stage13_runtime.env
+
+System:
+  Bulk waters:        3800 (default, adjustable)
+  Alanine atoms:      22 (from ala2_seed.pdb)
+  Total atoms:        ~11,400 (initial)
+
+Extraction:
+  NPBC sphere:        R = 15 Å
+  PBC cube:           edge ≈ 24.2 Å (equiv. volume)
+  Final systems:      ~1,400 atoms each
+
+Simulation:
+  Temperature:        300 K
+  Pressure (NPT):     1 atm
+  Timestep:           1 fs
+  Total runtime:      1.1 M steps ≈ 1.1 ns
+
+Phases:
+  1. Minimize + warmup:   100 ps (~10 min)
+  2. NPT equilibration:   500 ps (~60–90 min)
+  3. NPT production:      500 ps (~60–90 min)
+  4. Extraction:          <1 min
+
+EDIT IN: configs/config_npt_bulk.env
+
+================================================================================
+TYPICAL WORKFLOW
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 1. SYSTEM GENERATION (1 min)                                            │
+│    generate_bulk_alanine_npt.py                                        │
+│    └─ 3800 water + alanine at rho0=0.037235960250849326                │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 2. MINIMIZE + WARMUP (10 min) — Phase 1                                │
+│    01_minimize_warmup_npt.mace                                          │
+│    └─ Minimize → T=25K → Ramp to 200K                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 3. NPT EQUILIBRATION (60–90 min) — Phase 2                            │
+│    02_npt_equilibration.mace                                            │
+│    └─ Equilibrate box & density (P=1 atm, T=300K, 500 ps)              │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 4. NPT PRODUCTION (60–90 min) — Phase 3                               │
+│    03_npt_production.mace                                               │
+│    └─ Continue NPT, collect statistics (500 ps)                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│ 5. EXTRACTION (<1 min)                                                 │
+│    extract_sphere_cube.py                                              │
+│    ├─ 15 Å sphere → alanine_cavity_R15_from_npt.data                  │
+│    └─ Equiv. cube → alanine_pbc_from_npt.data                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+OUTPUTS
+================================================================================
+
+PRIMARY (Use in production):
+  runs/data/alanine_cavity_R15_from_npt.data    (~50 KB, 1402 atoms)
+  runs/data/alanine_pbc_from_npt.data           (~50 KB, 1402 atoms)
+
+DIAGNOSTIC (Check convergence):
+  runs/logs/phase1_minimize_warmup.log
+  runs/logs/phase2_npt_eq.log
+  runs/logs/phase3_npt_prod.log
+  runs/traj_bulk_npt_phase2_eq.dump
+  runs/traj_bulk_npt_phase3_prod.dump
+
+CHECKPOINTS (Resume if needed):
+  runs/restart_npt_phase1_warmup.lammps
+  runs/restart_npt_phase2_eq_*.lammps
+  runs/restart_npt_phase3_prod_*.lammps
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. READ DOCUMENTATION
+   ✓ QUICK_START.md (30 sec)
+   ✓ USER_GUIDE.md (detailed)
+   ✓ README.md (full reference)
+
+2. RUN LOCAL (or Leonardo)
+   $ bash run_workflow.sh
+
+3. VERIFY OUTPUTS
+   $ ls runs/data/
+   $ python3 analysis_tools/analyze_npt_convergence.py runs/logs/phase3_npt_prod.log
+
+4. USE IN PRODUCTION
+   Copy runs/data/*.data to NPBC/PBC production folders
+   Run NPBC with cavity/reflect + frozen bias
+   Run PBC with equivalent settings
+   Compare results
+
+5. ANALYZE
+   Compare solute conformation, solvation structure, dynamics
+   Extract free energy landscapes, diffusion rates, etc.
+
+================================================================================
+SUPPORT
+================================================================================
+
+Questions? Check:
+  ✓ QUICK_START.md     (for quick overview)
+  ✓ README.md          (for technical details)
+  ✓ USER_GUIDE.md      (for step-by-step help)
+  ✓ runs/logs/         (for runtime diagnostics)
+
+Troubleshooting:
+  ✓ See README.md "Troubleshooting" section
+  ✓ Use analyze_npt_convergence.py to check phases
+  ✓ Examine LAMMPS logs for errors
+
+================================================================================
+READY? START HERE:
+
+  $ cd npt_bulk_equilibration_workflow
+  $ cat QUICK_START.md
+  $ bash run_workflow.sh
+
+================================================================================

@@ -1,0 +1,60 @@
+# NPT Bulk Equilibration - Phase 3: NPT Production
+# Purpose: Long production run to collect statistics
+# Duration: 500 ps (500,000 steps @ 1 fs/step)
+# Output: final .data file for sphere/cube extraction
+# Date: 2026-03-24
+
+units real
+atom_style molecular
+boundary p p p
+
+read_restart restart_npt_phase2_eq_final.lammps
+
+# MACE-OFF23 ML potential
+pair_style mliap model ${model_path}
+pair_coeff * * O H C N
+
+# Neighbor list
+neighbor 2.0 bin
+neigh_modify delay 10 every 1
+
+# Integrate and thermostat setup
+timestep 1.0
+
+# Group definitions
+group solute molecule 1
+group solvent subtract all solute
+
+# Freeze solute (zero velocity, no forces applied)
+fix freeze_solute solute setforce 0.0 0.0 0.0
+
+# ===== NPT PRODUCTION =====
+print ">>> Phase 3: NPT Production (300K, 1 atm, 500 ps)"
+
+# NPT: isotropic pressure coupling, 300K, 1 atm
+# Thermostat damping: 0.1 ps (100 fs)
+# Barostat damping: 1.0 ps (1000 fs)
+fix npt_prod all npt temp 300.0 300.0 100.0 iso 1.0 1.0 1000.0
+
+# Output: thermodynamic data every 500 steps (0.5 ps)
+thermo 500
+thermo_style custom step time temp press density vol
+
+# Dump full trajectory every 500 steps
+dump traj_prod all atom 500 traj_bulk_npt_phase3_prod.dump
+
+# Dump restart files every 50,000 steps for resumability
+restart 50000 restart_npt_phase3_prod_*.lammps
+
+# Run NPT production
+run 500000
+
+print ">>> Phase 3 Complete"
+print ">>> Final density: ${density}"
+print ">>> Box length at end: ${vol}^(1/3)"
+
+# Write final restart and data file
+write_restart restart_npt_phase3_prod_final.lammps
+write_data data/bulk_water_alanine_npt_final.data
+
+print ">>> NPT Production phase complete. Ready for sphere/cube extraction."

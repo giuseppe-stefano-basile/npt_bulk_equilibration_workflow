@@ -1,0 +1,51 @@
+# NPT Bulk Equilibration - Phase 1: Minimization + Warmup
+# Purpose: Initial energy relaxation and gentle temperature ramp
+# Date: 2026-03-24
+
+units real
+atom_style molecular
+boundary p p p
+
+read_data bulk_water_alanine_npt.data
+
+# MACE-OFF23 ML potential
+pair_style mliap model MACE-OFF23_small.model-mliap_lammps_float32.pt
+pair_coeff * * O H C N
+
+# Neighbor list
+neighbor 2.0 bin
+neigh_modify delay 10 every 1
+
+# Integrate and thermostat setup
+timestep 1.0
+
+# ===== MINIMIZE =====
+print ">>> Phase 1a: Energy minimization"
+minimize 1e-4 1e-6 10000 100000
+print "Minimization complete"
+
+# Freeze solute (alanine, mol ID 1)
+group solute molecule 1
+group solvent subtract all solute
+fix freeze_solute solute setforce 0.0 0.0 0.0
+
+# ===== WARMUP: T=25K =====
+print ">>> Phase 1b: Warmup to 25K"
+velocity all create 25.0 45678
+fix nve_warmup all nve
+fix langevin_warmup all langevin 25.0 25.0 50.0 48574
+run 50000
+unfix nve_warmup
+unfix langevin_warmup
+
+# ===== RAMP: 25K -> 200K =====
+print ">>> Phase 1c: Ramp 25K -> 200K"
+fix nve_ramp all nve
+fix langevin_ramp all langevin 25.0 200.0 50.0 48575
+run 100000
+unfix nve_ramp
+unfix langevin_ramp
+
+write_restart restart_npt_phase1_warmup.lammps
+
+print ">>> Phase 1 Complete"

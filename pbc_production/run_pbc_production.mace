@@ -1,0 +1,80 @@
+# NPT Bulk Equilibration Workflow - PBC Production
+# Periodic cubic box NVT production for direct NPBC comparison
+# Extracted from: alanine_pbc_from_npt.data
+# Boundary: Periodic (no bias, split-thermostat NVT)
+# Duration: 5 ns (5,000,000 steps @ 1 fs/step)
+# Reference: stage13corr run_nvt_alanine_pbc_off23_stage13corr_prod.mace
+# Date: 2026-03-27
+
+log                 pbc_production.log
+
+units               metal
+atom_style          molecular
+atom_modify         map yes
+newton              on
+dimension           3
+boundary            p p p
+
+variable            model_file       string "./MACE-OFF23_small.model-mliap_lammps_float32.pt"
+variable            species1         string "C"
+variable            species2         string "N"
+variable            species3         string "O"
+variable            species4         string "H"
+
+# Thermostat parameters (metal units: ps)
+variable            T                equal 300.0
+variable            dt               equal 0.001
+variable            tdamp            equal 0.1
+
+# Integration parameters
+variable            rmom_every       index 10
+
+# Production run parameters
+variable            prod_steps       index 5000000
+variable            thermo_stride    index 500
+variable            dump_stride      index 500
+
+# Read system from extracted cube
+read_data           ../runs/data/alanine_pbc_from_npt.data
+timestep            ${dt}
+
+# ML potential: MACE-OFF23 (unified descriptor interface)
+pair_style          mliap unified ${model_file} 0
+pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
+
+# Group definitions
+group               solute molecule 1
+group               solvent subtract all solute
+
+# Compute temperatures separately
+compute             t_solute  solute temp
+compute             t_solvent solvent temp
+
+# Thermodynamic output
+thermo_style        custom step time temp c_t_solute c_t_solvent etotal epair press vol
+thermo              ${thermo_stride}
+thermo_modify       flush yes
+
+# ===== PBC PRODUCTION (5 ns) =====
+print ">>> PBC Production: 5 ns at T=300K, periodic boundaries"
+
+# Thermostat: separate NVT control for solute and solvent (matches reference)
+fix                 int_sol   solute nvt temp ${T} ${T} ${tdamp}
+fix                 int_solv  solvent nvt temp ${T} ${T} ${tdamp}
+
+# Momentum reset
+fix                 rmom      all momentum ${rmom_every} linear 1 1 1
+
+# Trajectory output
+dump                dprod all custom ${dump_stride} ./traj_alanine_pbc_prod.dump id mol type x y z
+dump_modify         dprod sort id append no
+
+# Run production
+run                 ${prod_steps}
+
+# Final outputs
+write_restart       ./restart_alanine_pbc_prod_final.lammps
+write_data          ./alanine_pbc_prod_final.data
+
+print ">>> PBC Production Complete (5 ns)"
+print ">>> Output: traj_alanine_pbc_prod.dump"

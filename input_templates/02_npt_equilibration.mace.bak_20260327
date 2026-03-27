@@ -1,0 +1,58 @@
+# NPT Bulk Equilibration - Phase 2: NPT Equilibration
+# Purpose: Equilibrate box size and density at P=1 atm, T=300K
+# Duration: 500 ps (500,000 steps @ 1 fs/step)
+# Date: 2026-03-24
+
+units real
+atom_style molecular
+boundary p p p
+
+read_restart restart_npt_phase1_warmup.lammps
+
+# MACE-OFF23 ML potential
+pair_style mliap model ${model_path}
+pair_coeff * * O H C N
+
+# Neighbor list
+neighbor 2.0 bin
+neigh_modify delay 10 every 1
+
+# Integrate and thermostat setup
+timestep 1.0
+
+# Group definitions
+group solute molecule 1
+group solvent subtract all solute
+
+# Freeze solute (zero velocity, no forces applied)
+fix freeze_solute solute setforce 0.0 0.0 0.0
+
+# ===== NPT EQUILIBRATION =====
+print ">>> Phase 2: NPT Equilibration (500K, 1 atm, 500 ps)"
+
+# Initialize velocities at 300K
+velocity all create 300.0 987654
+
+# NPT: isotropic pressure coupling, 300K, 1 atm
+# Thermostat damping: 0.1 ps (100 fs)
+# Barostat damping: 1.0 ps (1000 fs)
+fix npt_eq all npt temp 300.0 300.0 100.0 iso 1.0 1.0 1000.0
+
+# Output: thermodynamic data every 1000 steps (1 ps)
+thermo 1000
+thermo_style custom step time temp press density vol
+
+# Dump full trajectory every 1000 steps
+dump traj_eq all atom 1000 traj_bulk_npt_phase2_eq.dump
+
+# Dump restart files every 50,000 steps for resumability
+restart 50000 restart_npt_phase2_eq_*.lammps
+
+# Run NPT equilibration
+run 500000
+
+print ">>> Phase 2 Complete"
+print ">>> Final density check: ${density}"
+
+# Write final restart for next phase
+write_restart restart_npt_phase2_eq_final.lammps

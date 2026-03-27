@@ -1,0 +1,80 @@
+# NPT Bulk Equilibration - Phase 3: NPT Production
+# Purpose: Long production run to collect statistics
+# Duration: 500 ps (500,000 steps @ 1 fs/step)
+# Output: final .data file for sphere/cube extraction
+# Reference: stage13corr MACE-OFF23 protocol
+# Date: 2026-03-27
+
+log                 logs/production.log
+
+units               metal
+atom_style          molecular
+atom_modify         map yes
+newton              on
+dimension           3
+boundary            p p p
+
+variable            model_file       string "./MACE-OFF23_small.model-mliap_lammps_float32.pt"
+variable            species1         string "C"
+variable            species2         string "N"
+variable            species3         string "O"
+variable            species4         string "H"
+
+# Thermostat / barostat parameters (metal units: ps, bar)
+variable            T                equal 300.0
+variable            P                equal 1.01325
+variable            dt               equal 0.001
+variable            tdamp            equal 0.1
+variable            pdamp            equal 1.0
+variable            rmom_every       index 10
+variable            prod_steps       index 500000
+variable            thermo_stride    index 500
+variable            dump_stride      index 500
+
+read_restart        data/restart_npt_phase2_eq_final.lammps
+timestep            ${dt}
+
+# MACE-OFF23 ML potential (unified descriptor interface)
+pair_style          mliap unified ${model_file} 0
+pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
+
+# Group definitions
+group               solute molecule 1
+group               solvent subtract all solute
+
+# Freeze solute (zero velocity, no forces applied)
+fix                 freeze_solute solute setforce 0.0 0.0 0.0
+
+# Compute temperatures separately
+compute             t_solute  solute temp
+compute             t_solvent solvent temp
+
+# ===== NPT PRODUCTION (500 ps) =====
+print ">>> Phase 3: NPT Production (300K, 1 atm, 500 ps)"
+
+# NPT: isotropic pressure coupling
+fix                 npt_prod all npt temp ${T} ${T} ${tdamp} iso ${P} ${P} ${pdamp}
+fix                 rmom     all momentum ${rmom_every} linear 1 1 1
+
+# Thermodynamic output every 500 steps (0.5 ps)
+thermo_style        custom step time temp c_t_solute c_t_solvent etotal epair press vol
+thermo              ${thermo_stride}
+thermo_modify       flush yes
+
+# Dump full trajectory every 500 steps
+dump                traj_prod all custom ${dump_stride} data/traj_bulk_npt_phase3_prod.dump id mol type x y z
+dump_modify         traj_prod sort id append no
+
+# Restart checkpoints every 50,000 steps
+restart             50000 data/restart_npt_phase3_prod_a.lammps data/restart_npt_phase3_prod_b.lammps
+
+# Run NPT production
+run                 ${prod_steps}
+
+print ">>> Phase 3 Complete"
+
+# Write final restart and data file
+write_restart       data/restart_npt_phase3_prod_final.lammps
+write_data          data/bulk_water_alanine_npt_final.data
+
+print ">>> NPT Production phase complete. Ready for sphere/cube extraction."
