@@ -9,9 +9,10 @@ Purpose:
 
 Features:
   - Center on alanine COM (solute molecule ID 1)
+  - Respect periodic images from the NPT frame when available
   - NPBC sphere: cavity/reflect boundary
-  - PBC cube: periodic boundaries with solute COM at center
-  - Both inherit frozen solute from NPT run
+  - PBC cube: periodic boundaries with solute COM at box center
+  - Both outputs are recentered so the solute COM is at the origin
 """
 
 from __future__ import annotations
@@ -87,19 +88,22 @@ def read_data_file(path: Path) -> tuple[dict, list[dict], list[dict], dict]:
                 atom_type = int(parts[2])
                 # atom_style molecular: id mol type x y z [ix iy iz]
                 # atom_style full:      id mol type charge x y z [ix iy iz]
-                # Detect by trying to parse parts[3] as float:
-                # if parts[3] looks like a coordinate (large magnitude), it's molecular
-                test_val = float(parts[3])
-                if len(parts) >= 7 and abs(test_val) < 10.0:
-                    # Likely 'full' style with charge
-                    x = float(parts[4])
-                    y = float(parts[5])
-                    z = float(parts[6])
+                if len(parts) in {6, 9}:
+                    coord_start = 3
+                elif len(parts) in {7, 10}:
+                    coord_start = 4
                 else:
-                    # 'molecular' style — no charge column
-                    x = float(parts[3])
-                    y = float(parts[4])
-                    z = float(parts[5])
+                    test_val = float(parts[3])
+                    coord_start = 4 if len(parts) >= 7 and abs(test_val) < 10.0 else 3
+
+                x = float(parts[coord_start])
+                y = float(parts[coord_start + 1])
+                z = float(parts[coord_start + 2])
+                ix = iy = iz = 0
+                if len(parts) >= coord_start + 6:
+                    ix = int(parts[coord_start + 3])
+                    iy = int(parts[coord_start + 4])
+                    iz = int(parts[coord_start + 5])
                 atoms.append({
                     "id": atom_id,
                     "mol": mol_id,
@@ -107,6 +111,9 @@ def read_data_file(path: Path) -> tuple[dict, list[dict], list[dict], dict]:
                     "x": x,
                     "y": y,
                     "z": z,
+                    "ix": ix,
+                    "iy": iy,
+                    "iz": iz,
                 })
             except (ValueError, IndexError):
                 pass
@@ -128,17 +135,88 @@ def read_data_file(path: Path) -> tuple[dict, list[dict], list[dict], dict]:
     return box, atoms, dict(molecules), masses
 
 
-def get_solute_com(atoms: list[dict], masses: dict) -> tuple[float, float, float]:
+def get_box_lengths(box: dict) -> tuple[float | None, float | None, float | None]:
+    """Return orthorhombic box lengths if present."""
+    lx = box["xhi"] - box["xlo"] if "xlo" in box and "xhi" in box else None
+    ly = box["yhi"] - box["ylo"] if "ylo" in box and "yhi" in box else None
+    lz = box["zhi"] - box["zlo"] if "zlo" in box and "zhi" in box else None
+    return lx, ly, lz
+
+
+def minimum_image_delta(delta: float, box_length: float | None) -> float:
+    """Wrap a displacement to the nearest periodic image when box_length is known."""
+    if not box_length:
+        return delta
+    return delta - box_length * round(delta / box_length)
+
+
+def weighted_mean(values: list[float], weights: list[float]) -> float:
+    """Mass-weighted arithmetic mean."""
+    return sum(w * v for v, w in zip(values, weights)) / sum(weights)
+
+
+def periodic_weighted_mean(values: list[float], weights: list[float], lo: float, hi: float) -> float:
+    """Mass-weighted mean on a periodic interval using circular statistics."""
+    length = hi - lo
+    if length <= 0.0:
+        raise ValueError("Periodic interval must have positive length")
+
+    angles = [2.0 * math.pi * (value - lo) / length for value in values]
+    sin_sum = sum(weight * math.sin(angle) for angle, weight in zip(angles, weights))
+    cos_sum = sum(weight * math.cos(angle) for angle, weight in zip(angles, weights))
+
+    if abs(sin_sum) < 1e-12 and abs(cos_sum) < 1e-12:
+        return weighted_mean(values, weights)
+
+    angle = math.atan2(sin_sum, cos_sum)
+    if angle < 0.0:
+        angle += 2.0 * math.pi
+
+    value = lo + length * angle / (2.0 * math.pi)
+    return value if value < hi else value - length
+
+
+def get_solute_com(atoms: list[dict], masses: dict, box: dict | None = None) -> tuple[float, float, float]:
     """Get mass-weighted center of mass of solute (molecule ID 1)."""
     solute_atoms = [a for a in atoms if a["mol"] == 1]
     if not solute_atoms:
         raise ValueError("No solute atoms found (mol_id=1)")
-    
-    total_mass = sum(masses.get(a["type"], 1.0) for a in solute_atoms)
-    cx = sum(masses.get(a["type"], 1.0) * a["x"] for a in solute_atoms) / total_mass
-    cy = sum(masses.get(a["type"], 1.0) * a["y"] for a in solute_atoms) / total_mass
-    cz = sum(masses.get(a["type"], 1.0) * a["z"] for a in solute_atoms) / total_mass
+
+    weights = [masses.get(atom["type"], 1.0) for atom in solute_atoms]
+    xs = [atom["x"] for atom in solute_atoms]
+    ys = [atom["y"] for atom in solute_atoms]
+    zs = [atom["z"] for atom in solute_atoms]
+
+    if box and all(key in box for key in ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")):
+        cx = periodic_weighted_mean(xs, weights, box["xlo"], box["xhi"])
+        cy = periodic_weighted_mean(ys, weights, box["ylo"], box["yhi"])
+        cz = periodic_weighted_mean(zs, weights, box["zlo"], box["zhi"])
+    else:
+        cx = weighted_mean(xs, weights)
+        cy = weighted_mean(ys, weights)
+        cz = weighted_mean(zs, weights)
+
     return cx, cy, cz
+
+
+def recenter_atoms_on_solute(atoms: list[dict], center: tuple[float, float, float], box: dict) -> list[dict]:
+    """Translate atoms so the solute COM sits at the origin, using minimum-image displacements."""
+    lx, ly, lz = get_box_lengths(box)
+    cx, cy, cz = center
+    centered = []
+
+    for atom in atoms:
+        centered.append({
+            **atom,
+            "x": minimum_image_delta(atom["x"] - cx, lx),
+            "y": minimum_image_delta(atom["y"] - cy, ly),
+            "z": minimum_image_delta(atom["z"] - cz, lz),
+            "ix": 0,
+            "iy": 0,
+            "iz": 0,
+        })
+
+    return centered
 
 
 def extract_sphere(atoms: list[dict], center: tuple[float, float, float], 
@@ -238,13 +316,14 @@ def write_data_file(path: Path, atoms: list[dict], box: dict, masses: dict,
         f.write("Atoms # molecular\n\n")
         for atom in atoms:
             f.write(f"{atom['id']:>6} {atom['mol']:>3} {atom['type']:>2} "
-                   f"{atom['x']:>15.8f} {atom['y']:>15.8f} {atom['z']:>15.8f} 0 0 0\n")
+                   f"{atom['x']:>15.8f} {atom['y']:>15.8f} {atom['z']:>15.8f} "
+                   f"{atom.get('ix', 0):>2} {atom.get('iy', 0):>2} {atom.get('iz', 0):>2}\n")
 
 
 def main():
     args = parse_args()
     
-    print("[1/4] Reading NPT final frame...")
+    print("[1/5] Reading NPT final frame...")
     npt_path = Path(args.npt_data)
     if not npt_path.exists():
         raise FileNotFoundError(f"NPT data file not found: {npt_path}")
@@ -252,20 +331,25 @@ def main():
     box, atoms, molecules, masses = read_data_file(npt_path)
     print(f"  Loaded {len(atoms)} atoms in {len(molecules)} molecules")
     
-    print("[2/4] Computing solute COM...")
-    solute_com = get_solute_com(atoms, masses)
+    print("[2/5] Computing solute COM...")
+    solute_com = get_solute_com(atoms, masses, box)
     print(f"  Solute COM: ({solute_com[0]:.3f}, {solute_com[1]:.3f}, {solute_com[2]:.3f}) Å")
-    
-    print(f"[3/4] Extracting sphere (R={args.sphere_r} Å, NPBC)...")
-    sphere_atoms = extract_sphere(atoms, solute_com, args.sphere_r)
+
+    print("[3/5] Recentering coordinates on solute COM...")
+    centered_atoms = recenter_atoms_on_solute(atoms, solute_com, box)
+    centered_solute_com = get_solute_com(centered_atoms, masses)
+    print(f"  Recentered solute COM: ({centered_solute_com[0]:.6f}, {centered_solute_com[1]:.6f}, {centered_solute_com[2]:.6f}) Å")
+
+    print(f"[4/5] Extracting sphere (R={args.sphere_r} Å, NPBC)...")
+    sphere_atoms = extract_sphere(centered_atoms, (0.0, 0.0, 0.0), args.sphere_r)
     sphere_atoms = renumber_atoms(sphere_atoms)
-    n_waters_sphere = len([a for a in sphere_atoms if a["mol"] > 1])
+    n_waters_sphere = len([mol for mol in get_unique_mols(sphere_atoms) if mol > 1])
     print(f"  Extracted {len(sphere_atoms)} atoms ({n_waters_sphere} water molecules)")
     
-    print(f"[4/4] Extracting cube (edge={args.cube_edge} Å, PBC)...")
-    cube_atoms = extract_cube(atoms, solute_com, args.cube_edge)
+    print(f"[5/5] Extracting cube (edge={args.cube_edge} Å, PBC)...")
+    cube_atoms = extract_cube(centered_atoms, (0.0, 0.0, 0.0), args.cube_edge)
     cube_atoms = renumber_atoms(cube_atoms)
-    n_waters_cube = len([a for a in cube_atoms if a["mol"] > 1])
+    n_waters_cube = len([mol for mol in get_unique_mols(cube_atoms) if mol > 1])
     print(f"  Extracted {len(cube_atoms)} atoms ({n_waters_cube} water molecules)")
     
     print(f"\nWriting output files...")
@@ -281,7 +365,8 @@ def main():
     
     print("\n=== Extraction Summary ===")
     print(f"NPT system: {len(atoms)} atoms")
-    print(f"Solute COM: {solute_com}")
+    print(f"Solute COM before recentering: {solute_com}")
+    print(f"Solute COM after recentering: {centered_solute_com}")
     print(f"Sphere (R={args.sphere_r} Å): {len(sphere_atoms)} atoms, {n_waters_sphere} waters")
     print(f"Cube (edge={args.cube_edge} Å): {len(cube_atoms)} atoms, {n_waters_cube} waters")
     print(f"Density match: sphere={n_waters_sphere/(4/3*math.pi*args.sphere_r**3):.6f}, "

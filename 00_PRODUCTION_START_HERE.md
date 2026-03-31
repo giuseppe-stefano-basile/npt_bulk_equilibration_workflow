@@ -44,7 +44,7 @@ NPBC Production  PBC Production
 
 ### 4. PBC Production (`pbc_production/`)
 - **Duration**: 5 nanoseconds
-- **Boundary**: Periodic boundaries (comparison system)
+- **Boundary**: Periodic boundaries with alanine weakly tethered at the cube center
 - **Bias**: None (bulk-like system)
 - **Embedded Files**:
   - `MACE-OFF23_small.model-mliap_lammps_float32.pt`

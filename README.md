@@ -18,8 +18,9 @@ This workflow implements a robust protocol for preparing comparison systems:
 
 - **Target density:** `rho0 = 0.037235960250849326 mol/Å³` (from stage13 optimization .env)
 - **Bulk system:** 3800 water molecules in ~35 Å box (larger than final systems for better bulk representation)
-- **Alanine dipeptide:** Fully frozen during NPT (zero velocity, COM locked) to avoid artificial density modulation
-- **Extraction:** Both sphere and cube centered on solute COM for direct comparison
+- **Alanine dipeptide:** Solute forces are zeroed during NPT, and the extracted systems are explicitly recentered for comparison-ready production runs
+- **Extraction:** Both sphere and cube are written with the solute COM at the origin
+- **PBC production:** Periodic comparison run uses a weak tether to keep alanine at the cube center
 
 ---
 
@@ -274,7 +275,7 @@ After successful workflow run:
 | File | Size | Use |
 |------|------|-----|
 | `alanine_cavity_R15_from_npt.data` | ~50 KB | NPBC production (cavity/reflect + frozen bias) |
-| `alanine_pbc_from_npt.data` | ~50 KB | PBC production (NVT/NPT, equivalent volume) |
+| `alanine_pbc_from_npt.data` | ~50 KB | PBC production (periodic, equivalent volume, alanine centered) |
 
 ### Diagnostics (saved in runs/)
 
@@ -303,7 +304,7 @@ lmp -in run_nvt_alanine_nbpc_off23_stage13_prod_frozen.mace
 Copy `alanine_pbc_from_npt.data` to your PBC production folder and run:
 
 ```bash
-# With equivalent density and constraints
+# With equivalent density and a weak center tether on alanine
 lmp -in run_nvt_alanine_pbc_off23_equiv.mace
 ```
 

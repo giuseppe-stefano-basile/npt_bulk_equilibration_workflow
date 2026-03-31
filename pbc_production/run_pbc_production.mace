@@ -1,7 +1,7 @@
 # NPT Bulk Equilibration Workflow - PBC Production
 # Periodic cubic box NVT production for direct NPBC comparison
 # Extracted from: alanine_pbc_from_npt.data
-# Boundary: Periodic (no bias, split-thermostat NVT)
+# Boundary: Periodic (no bias, weak solute tether at box center, split-thermostat NVT)
 # Duration: 5 ns (5,000,000 steps @ 1 fs/step)
 # Reference: stage13corr run_nvt_alanine_pbc_off23_stage13corr_prod.mace
 # Date: 2026-03-27
@@ -26,6 +26,9 @@ variable            T                equal 300.0
 variable            dt               equal 0.001
 variable            tdamp            equal 0.1
 
+# Solute anchoring (mirror NPBC so alanine stays at the cube center)
+variable            anchor_k         equal 0.3
+
 # Integration parameters
 variable            rmom_every       index 10
 
@@ -49,14 +52,19 @@ group               solvent subtract all solute
 # Compute temperatures separately
 compute             t_solute  solute temp
 compute             t_solvent solvent temp
+compute             com_solute solute com
+variable            rcom_solute equal sqrt(c_com_solute[1]^2+c_com_solute[2]^2+c_com_solute[3]^2)
 
 # Thermodynamic output
-thermo_style        custom step time temp c_t_solute c_t_solvent etotal epair press vol
+thermo_style        custom step time temp c_t_solute c_t_solvent v_rcom_solute etotal epair press vol
 thermo              ${thermo_stride}
 thermo_modify       flush yes
 
 # ===== PBC PRODUCTION (5 ns) =====
-print ">>> PBC Production: 5 ns at T=300K, periodic boundaries"
+print ">>> PBC Production: 5 ns at T=300K, periodic boundaries, alanine anchored at box center"
+
+# Solute anchor: keep alanine COM at the origin, i.e. the center of the extracted cube
+fix                 anchor    solute spring tether ${anchor_k} 0.0 0.0 0.0 0.0
 
 # Thermostat: separate NVT control for solute and solvent (matches reference)
 fix                 int_sol   solute nvt temp ${T} ${T} ${tdamp}

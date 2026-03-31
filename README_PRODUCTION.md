@@ -18,7 +18,7 @@ The workflow now includes **full production simulation capabilities**:
 
 ### PBC Production (`pbc_production/`)
 - **System:** Equivalent-volume cube from NPT extraction
-- **Boundary:** Periodic cubic box
+- **Boundary:** Periodic cubic box with alanine tethered at box center
 - **Bias:** None (direct comparison)
 - **Duration:** 5 ns production
 - **Output:** Trajectory, final structure

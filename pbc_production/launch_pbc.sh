@@ -39,7 +39,7 @@ echo "[1/3] Checking files..."
 echo "✓ All files present"
 echo ""
 
-echo "[2/3] PBC production run (5 ns, ~3–4 hours on GPU)..."
+echo "[2/3] PBC production run (5 ns, ~3–4 hours on GPU, alanine tethered at cube center)..."
 mkdir -p logs
 $LMP $KOKKOS_ARGS -in run_pbc_production.mace 2>&1 | tee -a logs/pbc_prod.log
 

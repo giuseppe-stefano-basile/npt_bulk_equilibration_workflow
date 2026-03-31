@@ -20,13 +20,13 @@ This self-contained package generates **two systems for direct comparison:**
 ### System B: PBC (Periodic Cube)  
 - **Geometry:** Cubic box with equivalent volume (~4600 Å³)
 - **Atoms:** ~1402 total (22 solute + ~1380 water)
-- **Boundary:** Periodic (standard NVT/NPT)
+- **Boundary:** Periodic with alanine weakly tethered at the box center
 - **Use:** PBC production for direct NPBC↔PBC comparison
 - **Output file:** `runs/data/alanine_pbc_from_npt.data`
 
 **Both systems:**
 - Derived from identical NPT-equilibrated bulk
-- Same solute configuration (alanine COM)
+- Same solute configuration (alanine COM recentered to origin on extraction)
 - Same target density: `0.037235960250849326 mol/Å³` (from stage13 optimization)
 - Ready for production runs
 
