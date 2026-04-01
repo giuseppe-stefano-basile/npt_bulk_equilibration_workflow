@@ -29,7 +29,7 @@ A **complete, self-contained simulation pipeline** has been created for executio
         │                         │
 ┌───────▼──────────────┐  ┌──────▼────────────────┐
 │ 2A. EXTRACT SPHERE   │  │ 2B. EXTRACT CUBE     │
-│     (15 Å NPBC)      │  │     (24.2 Å PBC)     │
+│     (20 Å NPBC)      │  │     (40 Å PBC)     │
 │     ~1402 atoms      │  │     ~1402 atoms      │
 └───────┬──────────────┘  └──────┬────────────────┘
         │                         │
@@ -69,8 +69,8 @@ A **complete, self-contained simulation pipeline** has been created for executio
 | `launch_npbc.sh` | Local launcher | 4.0K | Runs production only |
 | `submit_npbc_leonardo.sh` | SLURM template | 4.0K | Depends on NPT job (if using batch) |
 | `MACE-OFF23_small.model-*.pt` | ML potential | 3.0M | **Embedded** ✓ |
-| `bias/VDWPARM_R15_*.dat` | VDW parameters | 4.0K | **Embedded** ✓ |
-| `bias/gau_stage13.dat` | Gaussian cavity | 4.0K | **Embedded** ✓ |
+| `bias/(R20 VDWPARM — must be supplied)` | VDW parameters | 4.0K | **Embedded** ✓ |
+| `bias/gau_R20.dat (must be supplied)` | Gaussian cavity | 4.0K | **Embedded** ✓ |
 | `logs/` | Output directory | — | Created on first run |
 
 **Key Feature**: All model and bias files are embedded - no external dependencies needed
@@ -215,7 +215,7 @@ module load cmake/3.27.0
 | Thermostat | Nose-Hoover | Nose-Hoover | — |
 | Solute tether k | 0.3 | 0.3 | a.u. |
 | Boundary | f f f (reflect) | p p p | — |
-| Cavity radius | 15 | — | Å |
+| Cavity radius | 20 | — | Å |
 | Bias | Frozen opt no | None | — |
 
 ### Target Density
@@ -270,8 +270,8 @@ npt_bulk_equilibration_workflow/ [6.1 MB]
 │   ├── submit_npbc_leonardo.sh          [4 KB]   SLURM template
 │   ├── MACE-OFF23_small.model-*.pt      [3.0 MB] ✓ Embedded model
 │   ├── bias/
-│   │   ├── VDWPARM_R15_S0125_*.dat      [4 KB]   ✓ Embedded
-│   │   └── gau_stage13.dat              [4 KB]   ✓ Embedded
+│   │   ├── (R20 VDWPARM — must be supplied)      [4 KB]   ✓ Embedded
+│   │   └── gau_R20.dat (must be supplied)              [4 KB]   ✓ Embedded
 │   └── logs/                            [output dir]
 │
 ├── pbc_production/                      [PBC PHASE - SELF-CONTAINED ✓]

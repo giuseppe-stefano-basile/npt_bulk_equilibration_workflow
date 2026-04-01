@@ -82,7 +82,9 @@ echo ""
 # ===== NPBC PRODUCTION =====
 echo "═══ NPBC PRODUCTION (Self-contained) ═══"
 check_dir "$WORKFLOW_DIR/npbc_production" "NPBC production folder"
-check_file "$WORKFLOW_DIR/npbc_production/run_npbc_production.mace" "NPBC LAMMPS input"
+check_file "$WORKFLOW_DIR/npbc_production/run_npbc_minimize.mace" "NPBC minimize input"
+check_file "$WORKFLOW_DIR/npbc_production/run_npbc_equilibration.mace" "NPBC equilibration input"
+check_file "$WORKFLOW_DIR/npbc_production/run_npbc_production.mace" "NPBC production input"
 check_file "$WORKFLOW_DIR/npbc_production/launch_npbc.sh" "NPBC launcher"
 check_executable "$WORKFLOW_DIR/npbc_production/launch_npbc.sh" "NPBC launcher executable"
 check_file "$WORKFLOW_DIR/npbc_production/submit_npbc_leonardo.sh" "NPBC SLURM template"
@@ -98,10 +100,31 @@ else
     ((ERRORS++))
 fi
 
-# NPBC Bias files
+# NPBC Bias files — R20 bias is mandatory but may not be provided yet
+echo ""
+echo "═══ NPBC BIAS (R20 — must be supplied before running NPBC) ═══"
 check_dir "$WORKFLOW_DIR/npbc_production/bias" "NPBC bias folder"
-check_file "$WORKFLOW_DIR/npbc_production/bias/VDWPARM_R15_S0125_step5000_stage13_outerSingles41_60.dat" "VDWPARM file"
-check_file "$WORKFLOW_DIR/npbc_production/bias/gau_stage13.dat" "Gaussian cavity file"
+# Source config to check NPBC_VDWPARM_FILE / NPBC_GAU_FILE
+if [[ -f "$WORKFLOW_DIR/configs/config_npt_bulk.env" ]]; then
+    source "$WORKFLOW_DIR/configs/config_npt_bulk.env"
+fi
+if [[ -z "${NPBC_VDWPARM_FILE:-}" ]] || [[ -z "${NPBC_GAU_FILE:-}" ]]; then
+    echo -e "${YELLOW}⚠${NC} NPBC_VDWPARM_FILE / NPBC_GAU_FILE not set — NPBC blocked until 20 Å bias provided"
+    ((WARNINGS++))
+else
+    if [[ -f "$WORKFLOW_DIR/npbc_production/${NPBC_VDWPARM_FILE}" ]] || [[ -f "${NPBC_VDWPARM_FILE}" ]]; then
+        echo -e "${GREEN}✓${NC} NPBC VDWPARM file: ${NPBC_VDWPARM_FILE}"
+    else
+        echo -e "${RED}✗${NC} NPBC VDWPARM file missing: ${NPBC_VDWPARM_FILE}"
+        ((ERRORS++))
+    fi
+    if [[ -f "$WORKFLOW_DIR/npbc_production/${NPBC_GAU_FILE}" ]] || [[ -f "${NPBC_GAU_FILE}" ]]; then
+        echo -e "${GREEN}✓${NC} NPBC GAU file: ${NPBC_GAU_FILE}"
+    else
+        echo -e "${RED}✗${NC} NPBC GAU file missing: ${NPBC_GAU_FILE}"
+        ((ERRORS++))
+    fi
+fi
 
 # NPBC logs directory
 if [[ -d "$WORKFLOW_DIR/npbc_production/logs" ]]; then
@@ -115,7 +138,9 @@ echo ""
 # ===== PBC PRODUCTION =====
 echo "═══ PBC PRODUCTION (Self-contained) ═══"
 check_dir "$WORKFLOW_DIR/pbc_production" "PBC production folder"
-check_file "$WORKFLOW_DIR/pbc_production/run_pbc_production.mace" "PBC LAMMPS input"
+check_file "$WORKFLOW_DIR/pbc_production/run_pbc_minimize.mace" "PBC minimize input"
+check_file "$WORKFLOW_DIR/pbc_production/run_pbc_equilibration.mace" "PBC equilibration input"
+check_file "$WORKFLOW_DIR/pbc_production/run_pbc_production.mace" "PBC production input"
 check_file "$WORKFLOW_DIR/pbc_production/launch_pbc.sh" "PBC launcher"
 check_executable "$WORKFLOW_DIR/pbc_production/launch_pbc.sh" "PBC launcher executable"
 check_file "$WORKFLOW_DIR/pbc_production/submit_pbc_leonardo.sh" "PBC SLURM template"

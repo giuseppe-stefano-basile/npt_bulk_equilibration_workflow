@@ -1,7 +1,8 @@
 #!/bin/bash
-# SLURM submission script for NPBC production on Leonardo BOOSTER
+# SLURM submission script for NPBC 3-stage pipeline on Leonardo BOOSTER
+# Stages: minimize → equilibration (100 ps) → production (5 ns) in 20 Å cavity
 #SBATCH --job-name=npbc_prod_ala2
-#SBATCH --time=05:00:00
+#SBATCH --time=08:00:00
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=boost_usr_prod
@@ -18,7 +19,7 @@ if [[ -f "${WORKFLOW_DIR}/configs/config_npt_bulk.env" ]]; then
     source "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
 fi
 
-echo "Starting NPBC production on GPU $CUDA_VISIBLE_DEVICES"
+echo "Starting NPBC 3-stage pipeline (minimize → eq → prod) on GPU $CUDA_VISIBLE_DEVICES"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Time: $(date)"
 echo ""

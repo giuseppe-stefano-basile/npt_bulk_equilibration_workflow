@@ -19,7 +19,8 @@ set -e
 WORKFLOW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==============================================="
-echo "COMPLETE NPT + PRODUCTION WORKFLOW"
+echo "COMPLETE NPT + EXTRACTION + PRODUCTION WORKFLOW"
+echo "  20 Å sphere (NPBC) / 40 Å cube (PBC)"
 echo "==============================================="
 echo "Location: ${WORKFLOW_DIR}"
 echo "Timestamp: $(date)"
@@ -55,19 +56,19 @@ cd "${WORKFLOW_DIR}"
 bash run_workflow.sh
 
 # Verify extraction
-if [ ! -f "runs/data/alanine_cavity_R15_from_npt.data" ] || \
-   [ ! -f "runs/data/alanine_pbc_from_npt.data" ]; then
+if [ ! -f "runs/data/alanine_cavity_R20_from_npt.data" ] || \
+   [ ! -f "runs/data/alanine_pbc_cube40_from_npt.data" ]; then
     echo "ERROR: NPT extraction failed"
     exit 1
 fi
-echo "✓ Systems extracted successfully"
+echo "✓ Systems extracted successfully (20 Å sphere, 40 Å cube)"
 echo ""
 
 # ============================================================================
 # STEP 2: NPBC Production
 # ============================================================================
 echo "==============================================="
-echo "STEP 2/3: NPBC Production (5 ns)"
+echo "STEP 2/3: NPBC Pipeline (minimize → eq → prod)"
 echo "==============================================="
 cd "${WORKFLOW_DIR}/npbc_production"
 export LMP_BIN="${LMP_BIN}"
@@ -85,7 +86,7 @@ echo ""
 # STEP 3: PBC Production
 # ============================================================================
 echo "==============================================="
-echo "STEP 3/3: PBC Production (5 ns)"
+echo "STEP 3/3: PBC Pipeline (minimize → eq → prod)"
 echo "==============================================="
 cd "${WORKFLOW_DIR}/pbc_production"
 export LMP_BIN="${LMP_BIN}"
@@ -109,8 +110,8 @@ echo "Completed: $(date)"
 echo ""
 echo "Generated systems and trajectories:"
 echo "  NPT bulk: runs/data/"
-echo "    ├─ alanine_cavity_R15_from_npt.data       (NPBC sphere)"
-echo "    └─ alanine_pbc_from_npt.data              (PBC cube)"
+echo "    ├─ alanine_cavity_R20_from_npt.data       (NPBC 20 Å sphere)"
+echo "    └─ alanine_pbc_cube40_from_npt.data       (PBC 40 Å cube)"
 echo ""
 echo "  NPBC production: npbc_production/"
 echo "    ├─ traj_alanine_nbpc_prod.dump           (5 ns trajectory)"

@@ -1,11 +1,11 @@
-# NPT Bulk Equilibration Workflow - PBC Production
-# Periodic cubic box NVT production for direct NPBC comparison
-# Extracted from: alanine_pbc_cube40_from_npt.data (40 Å cube)
-# Boundary: Periodic (no bias, weak solute tether at box center, split-thermostat NVT)
-# Duration: 5 ns (5,000,000 steps @ 1 fs/step)
+# PBC Extracted-System NVT Equilibration
+# Fixed-box NVT at 300 K in 40 Å periodic cube
+# Input: restart from PBC minimization
+# Output: restart for PBC production
+# Duration: 100 ps (100,000 steps @ 1 fs)
 # Date: 2026-04-01
 
-log                 pbc_production.log
+log                 pbc_equilibration.log
 
 units               metal
 atom_style          molecular
@@ -25,22 +25,22 @@ variable            T                equal 300.0
 variable            dt               equal 0.001
 variable            tdamp            equal 0.1
 
-# Solute anchoring (mirror NPBC so alanine stays at the cube center)
+# Solute anchoring (weak spring tether at box center)
 variable            anchor_k         equal 0.3
 
 # Integration parameters
 variable            rmom_every       index 10
 
-# Production run parameters
-variable            prod_steps       index 5000000
+# Equilibration run parameters
+variable            eq_steps         index 100000
 variable            thermo_stride    index 500
 variable            dump_stride      index 500
 
-# Read system from equilibrated PBC restart
-read_restart        ./restart_pbc_eq_final.lammps
+# Read from minimized restart
+read_restart        ./restart_pbc_minimize.lammps
 timestep            ${dt}
 
-# ML potential: MACE-OFF23 (unified descriptor interface)
+# ML potential: MACE-OFF23
 pair_style          mliap unified ${model_file} 0
 pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
 
@@ -48,7 +48,7 @@ pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
 group               solute molecule 1
 group               solvent subtract all solute
 
-# Compute temperatures separately
+# Compute temperatures
 compute             t_solute  solute temp
 compute             t_solvent solvent temp
 compute             com_solute solute com
@@ -59,13 +59,13 @@ thermo_style        custom step time temp c_t_solute c_t_solvent v_rcom_solute e
 thermo              ${thermo_stride}
 thermo_modify       flush yes
 
-# ===== PBC PRODUCTION (5 ns) =====
-print ">>> PBC Production: 5 ns at T=300K, periodic boundaries, alanine anchored at box center"
+# ===== PBC NVT EQUILIBRATION (100 ps, fixed box) =====
+print ">>> PBC Equilibration: 100 ps NVT at T=300K, 40 Å periodic cube"
 
-# Solute anchor: keep alanine COM at the origin, i.e. the center of the extracted cube
+# Solute anchor: keep alanine COM at the origin
 fix                 anchor    solute spring tether ${anchor_k} 0.0 0.0 0.0 0.0
 
-# Thermostat: separate NVT control for solute and solvent (matches reference)
+# Thermostat: separate NVT for solute and solvent
 fix                 int_sol   solute nvt temp ${T} ${T} ${tdamp}
 fix                 int_solv  solvent nvt temp ${T} ${T} ${tdamp}
 
@@ -73,15 +73,14 @@ fix                 int_solv  solvent nvt temp ${T} ${T} ${tdamp}
 fix                 rmom      all momentum ${rmom_every} linear 1 1 1
 
 # Trajectory output
-dump                dprod all custom ${dump_stride} ./traj_alanine_pbc_prod.dump id mol type x y z
-dump_modify         dprod sort id append no
+dump                deq all custom ${dump_stride} ./traj_alanine_pbc_eq.dump id mol type x y z
+dump_modify         deq sort id append no
 
-# Run production
-run                 ${prod_steps}
+# Run equilibration
+run                 ${eq_steps}
 
-# Final outputs
-write_restart       ./restart_alanine_pbc_prod_final.lammps
-write_data          ./alanine_pbc_prod_final.data
+# Save restart for production
+write_restart       ./restart_pbc_eq_final.lammps
+write_data          ./pbc_eq_final.data
 
-print ">>> PBC Production Complete (5 ns)"
-print ">>> Output: traj_alanine_pbc_prod.dump"
+print ">>> PBC NVT Equilibration Complete (100 ps)"

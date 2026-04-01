@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Extract 15 Å sphere and equivalent-volume cube from NPT final frame.
+"""Extract 20 Å sphere and 40 Å cube from NPT final frame.
 
 Purpose:
-  1. Extract 15 Å NPBC sphere around solute COM
-  2. Extract equiv-volume cube around solute COM for PBC comparison
+  1. Extract 20 Å NPBC sphere around solute COM
+  2. Extract 40 Å PBC cube around solute COM (encloses the 20 Å sphere)
   3. Write corresponding LAMMPS .data files ready for production
 
 Features:
@@ -29,11 +29,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--npt-data", default="bulk_water_alanine_npt_final.data", 
                        help="NPT final .data file")
-    parser.add_argument("--sphere-r", type=float, default=15.0, help="Sphere radius (Å)")
-    parser.add_argument("--cube-edge", type=float, default=24.2, help="Cube edge length (Å)")
-    parser.add_argument("--sphere-out", default="alanine_cavity_R15_from_npt.data",
+    parser.add_argument("--sphere-r", type=float, default=20.0, help="Sphere radius (Å), default 20.0")
+    parser.add_argument("--cube-edge", type=float, default=40.0, help="Cube edge length (Å), default 40.0")
+    parser.add_argument("--sphere-out", default="alanine_cavity_R20_from_npt.data",
                        help="Output sphere .data file for NPBC")
-    parser.add_argument("--cube-out", default="alanine_pbc_from_npt.data",
+    parser.add_argument("--cube-out", default="alanine_pbc_cube40_from_npt.data",
                        help="Output cube .data file for PBC")
     parser.add_argument("--padding", type=float, default=1.0, help="Extra clearance for bounds (Å)")
     parser.add_argument("--verbose", action="store_true", help="Debug output")

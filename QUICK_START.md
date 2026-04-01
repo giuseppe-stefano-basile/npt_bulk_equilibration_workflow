@@ -10,7 +10,7 @@
 A complete, self-contained workflow to:
 1. **Generate** bulk water (3800 molecules) + alanine system at target density
 2. **Run** 3-phase NPT protocol (100 ps warmup + 500 ps eq + 500 ps prod)
-3. **Extract** 15 Å NPBC sphere and equivalent PBC cube
+3. **Extract** 20 Å NPBC sphere and 40 Å PBC cube
 4. **Package** everything for Leonardo BOOSTER
 
 ---
@@ -62,8 +62,8 @@ bash run_workflow.sh
 
 # 3. Check outputs
 ls -lh runs/data/
-# alanine_cavity_R15_from_npt.data     (NPBC sphere)
-# alanine_pbc_from_npt.data            (PBC cube)
+# alanine_cavity_R20_from_npt.data     (NPBC sphere)
+# alanine_pbc_cube40_from_npt.data     (PBC cube)
 ```
 
 **Total time:** ~2.5–3 hours on GPU
@@ -122,8 +122,8 @@ grep "Final density" runs/logs/phase3_npt_prod.log
 | Alanine | 22 atoms (FROZEN) | ala2_seed.pdb |
 | Temperature | 300 K | Standard |
 | Pressure | 1 atm (NPT) | Standard |
-| Sphere R | 15 Å | NPBC extraction |
-| Cube edge | 24.2 Å | Equiv. volume |
+| Sphere R | 20 Å | NPBC extraction |
+| Cube edge | 40 Å | Encloses 20 Å sphere |
 
 ---
 
@@ -131,8 +131,8 @@ grep "Final density" runs/logs/phase3_npt_prod.log
 
 ```
 runs/data/
-├── alanine_cavity_R15_from_npt.data      ← Use for NPBC production
-├── alanine_pbc_from_npt.data             ← Use for PBC production
+├── alanine_cavity_R20_from_npt.data      ← Use for NPBC production
+├── alanine_pbc_cube40_from_npt.data      ← Use for PBC production
 └── bulk_water_alanine_npt_final.data     (Final NPT frame, for reference)
 
 runs/logs/
@@ -195,13 +195,13 @@ ls -la *.data *.lammps
 
 ## What Next?
 
-Once you have `alanine_cavity_R15_from_npt.data` and `alanine_pbc_from_npt.data`:
+Once you have `alanine_cavity_R20_from_npt.data` and `alanine_pbc_cube40_from_npt.data`:
 
 ### NPBC Production
 
 ```bash
 # Copy sphere to NPBC folder
-cp runs/data/alanine_cavity_R15_from_npt.data /path/to/npbc_production/
+cp runs/data/alanine_cavity_R20_from_npt.data /path/to/npbc_production/
 
 # Run with frozen bias from stage13
 lmp -in run_nvt_alanine_nbpc_off23_stage13_prod_frozen.mace
@@ -211,7 +211,7 @@ lmp -in run_nvt_alanine_nbpc_off23_stage13_prod_frozen.mace
 
 ```bash
 # Copy cube to PBC folder
-cp runs/data/alanine_pbc_from_npt.data /path/to/pbc_production/
+cp runs/data/alanine_pbc_cube40_from_npt.data /path/to/pbc_production/
 
 # Run with equivalent settings
 lmp -in run_nvt_alanine_pbc_off23_equiv.mace

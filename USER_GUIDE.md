@@ -11,18 +11,18 @@
 This self-contained package generates **two systems for direct comparison:**
 
 ### System A: NPBC (Non-Periodic Sphere)
-- **Geometry:** 15 Å radius sphere around alanine dipeptide
+- **Geometry:** 20 Å radius sphere around alanine dipeptide
 - **Atoms:** ~1402 total (22 solute + ~1380 water)
 - **Boundary:** Reflective sphere (`cavity/reflect` in LAMMPS)
 - **Use:** NPBC production with frozen mean-field bias
-- **Output file:** `runs/data/alanine_cavity_R15_from_npt.data`
+- **Output file:** `runs/data/alanine_cavity_R20_from_npt.data`
 
 ### System B: PBC (Periodic Cube)  
-- **Geometry:** Cubic box with equivalent volume (~4600 Å³)
+- **Geometry:** Cubic box with 40 Å cube (~4600 Å³)
 - **Atoms:** ~1402 total (22 solute + ~1380 water)
 - **Boundary:** Periodic with alanine weakly tethered at the box center
 - **Use:** PBC production for direct NPBC↔PBC comparison
-- **Output file:** `runs/data/alanine_pbc_from_npt.data`
+- **Output file:** `runs/data/alanine_pbc_cube40_from_npt.data`
 
 **Both systems:**
 - Derived from identical NPT-equilibrated bulk
@@ -50,8 +50,8 @@ bash run_workflow.sh
 **Outputs:** 
 ```
 runs/data/
-├── alanine_cavity_R15_from_npt.data    ← Use for NPBC production
-└── alanine_pbc_from_npt.data           ← Use for PBC production
+├── alanine_cavity_R20_from_npt.data    ← Use for NPBC production
+└── alanine_pbc_cube40_from_npt.data           ← Use for PBC production
 ```
 
 ---
@@ -111,8 +111,8 @@ LAMMPS: 03_npt_production.mace
 extract_sphere_cube.py
 ├─ Reads final NPT frame
 ├─ Computes alanine COM
-├─ Extracts 15 Å sphere → alanine_cavity_R15_from_npt.data
-└─ Extracts equiv. cube → alanine_pbc_from_npt.data
+├─ Extracts 20 Å sphere → alanine_cavity_R20_from_npt.data
+└─ Extracts equiv. cube → alanine_pbc_cube40_from_npt.data
 ```
 
 ---
@@ -128,8 +128,8 @@ extract_sphere_cube.py
 | **Temperature** | 300 K | Standard |
 | **Pressure** | 1 atm | Standard |
 | **Timestep** | 1 fs | LAMMPS default |
-| **Sphere radius** | 15 Å | NPBC target |
-| **Cube edge** | 24.2 Å | Equiv. volume |
+| **Sphere radius** | 20 Å | NPBC target |
+| **Cube edge** | 40 Å | 40 Å cube |
 
 **All locked in:** `configs/config_npt_bulk.env`
 
@@ -178,12 +178,12 @@ bash run_workflow.sh
 ### Primary Outputs (Use These)
 
 ```
-runs/data/alanine_cavity_R15_from_npt.data
+runs/data/alanine_cavity_R20_from_npt.data
 ├─ Atoms: 1402 (22 solute + 1380 water)
-├─ Boundary: Non-periodic (fits R=15 Å sphere)
+├─ Boundary: Non-periodic (fits R=20 Å sphere)
 └─ Use: NPBC production with cavity/reflect
 
-runs/data/alanine_pbc_from_npt.data  
+runs/data/alanine_pbc_cube40_from_npt.data  
 ├─ Atoms: 1402 (22 solute + 1380 water)
 ├─ Boundary: Periodic (cubic box)
 └─ Use: PBC production (NVT/NPT)
@@ -244,7 +244,7 @@ export STEPS_PROD_NPT="1000000"     # 1 ns instead of 500 ps
 python3 scripts/extract_sphere_cube.py \
     --npt-data runs/data/bulk_water_alanine_npt_final.data \
     --sphere-r 12.0 \                # Different radius
-    --cube-edge 19.5                 # Equiv. cube
+    --cube-edge 19.5                 # 40 Å cube
 ```
 
 ### Use Different GPU
@@ -260,7 +260,7 @@ export CUDA_VISIBLE_DEVICES="1"     # GPU 1 instead of 0
 
 ```bash
 # 1. Copy system to NPBC folder
-cp runs/data/alanine_cavity_R15_from_npt.data \
+cp runs/data/alanine_cavity_R20_from_npt.data \
    /path/to/npbc_production/
 
 # 2. Run NPBC with frozen bias from stage13
@@ -272,7 +272,7 @@ lmp -in run_nvt_alanine_nbpc_off23_stage13_prod_frozen.mace
 
 ```bash
 # 1. Copy system to PBC folder
-cp runs/data/alanine_pbc_from_npt.data \
+cp runs/data/alanine_pbc_cube40_from_npt.data \
    /path/to/pbc_production/
 
 # 2. Run PBC with equivalent settings
@@ -340,8 +340,8 @@ python3 scripts/extract_sphere_cube.py \
 
 ### Created During Run
 
-- `runs/data/alanine_cavity_R15_from_npt.data` ✓
-- `runs/data/alanine_pbc_from_npt.data` ✓
+- `runs/data/alanine_cavity_R20_from_npt.data` ✓
+- `runs/data/alanine_pbc_cube40_from_npt.data` ✓
 - `runs/logs/phase*.log` ✓
 - `runs/restart_npt_phase*.lammps` ✓
 - `runs/traj_bulk_npt_*.dump` ✓
@@ -353,8 +353,8 @@ python3 scripts/extract_sphere_cube.py \
 ### What You Get
 
 ✅ Two production-ready systems derived from identical NPT-equilibrated bulk  
-✅ NPBC sphere (R=15 Å) for cavity production  
-✅ PBC cube (equiv. volume) for periodic comparison  
+✅ NPBC sphere (R=20 Å) for cavity production  
+✅ PBC cube (40 Å cube) for periodic comparison  
 ✅ Both at exact density from stage13 optimization (0.037235960250849326 mol/Å³)  
 ✅ Complete documentation and packaging for Leonardo BOOSTER  
 

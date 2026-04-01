@@ -29,8 +29,8 @@ FOLDER STRUCTURE:
 │   ├── submit_npbc_leonardo.sh .............. SLURM template ✓ Executable
 │   ├── MACE-OFF23_small.model-*.pt .......... Model (3 MB) ✓ Embedded
 │   └── bias/
-│       ├── VDWPARM_R15_*.dat ................ Cavity params ✓ Embedded
-│       └── gau_stage13.dat .................. Gaussian params ✓ Embedded
+│       ├── (R20 VDWPARM — must be supplied) ................ Cavity params ✓ Embedded
+│       └── gau_R20.dat (must be supplied) .................. Gaussian params ✓ Embedded
 │
 ├── 🟣 PBC PRODUCTION - SELF-CONTAINED (4 files)
 │   ├── run_pbc_production.mace .............. LAMMPS input (5 ns)
@@ -129,7 +129,7 @@ Production Simulations (both):
 
 NPBC Production (Cavity):
   • Boundary: Non-periodic (f f f)
-  • Radius: 15 Ångströms sphere
+  • Radius: 20 Ångströms sphere
   • Bias: Frozen Gaussian from stage13 (opt no)
   • Purpose: Cavity-constrained reference
 

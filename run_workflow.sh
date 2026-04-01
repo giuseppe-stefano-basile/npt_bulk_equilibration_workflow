@@ -120,8 +120,8 @@ echo "========================================"
 echo "Config: ${WORKFLOW_DIR}/configs/config_npt_bulk.env"
 echo "Target density: ${RHO0_MOL_A3} mol/Å³ (${RHO_GCC} g/cm³)"
 echo "Bulk waters: ${N_WATER_BULK}"
-echo "Sphere radius: ${RADIUS_A} Å"
-echo "Cube edge: ${CUBE_EDGE_A} Å"
+echo "Sphere radius: ${SPHERE_R_A} Å (NPBC)"
+echo "Cube edge: ${CUBE_EDGE_A} Å (PBC)"
 echo "GCC module: ${GCC_MODULE:-default}"
 echo "CUDA module: ${CUDA_MODULE:-default}"
 echo "CMake module: ${CMAKE_MODULE:-default}"
@@ -221,13 +221,13 @@ echo ""
 # ============================================================================
 # STEP 5: Extract sphere and cube
 # ============================================================================
-echo "[STEP 5] Extracting sphere (15 Å, NPBC) and cube (PBC)..."
+echo "[STEP 5] Extracting sphere (20 Å, NPBC) and cube (40 Å, PBC)..."
 "${PYTHON_BIN}" "${SCRIPTS_DIR}/extract_sphere_cube.py" \
     --npt-data "data/bulk_water_alanine_npt_final.data" \
     --sphere-r "${SPHERE_R_A}" \
     --cube-edge "${CUBE_EDGE_A}" \
-    --sphere-out "data/alanine_cavity_R15_from_npt.data" \
-    --cube-out "data/alanine_pbc_from_npt.data" \
+    --sphere-out "data/alanine_cavity_R20_from_npt.data" \
+    --cube-out "data/alanine_pbc_cube40_from_npt.data" \
     --verbose
 echo "✓ Extraction complete"
 echo ""
@@ -239,11 +239,11 @@ echo "========================================"
 echo "Workflow Complete!"
 echo "========================================"
 echo "Output files:"
-echo "  NPBC sphere: runs/data/alanine_cavity_R15_from_npt.data"
-echo "  PBC cube:    runs/data/alanine_pbc_from_npt.data"
+echo "  NPBC sphere: runs/data/alanine_cavity_R20_from_npt.data"
+echo "  PBC cube:    runs/data/alanine_pbc_cube40_from_npt.data"
 echo ""
 echo "Next steps:"
-echo "  1. Copy data files to production directories"
-echo "  2. Launch NPBC production with frozen bias (same as stage13)"
-echo "  3. Launch PBC production with equivalent settings"
+echo "  1. Provide 20 Å bias files and set NPBC_VDWPARM_FILE / NPBC_GAU_FILE"
+echo "  2. Launch NPBC pipeline: cd npbc_production && bash launch_npbc.sh"
+echo "  3. Launch PBC pipeline:  cd pbc_production  && bash launch_pbc.sh"
 echo ""

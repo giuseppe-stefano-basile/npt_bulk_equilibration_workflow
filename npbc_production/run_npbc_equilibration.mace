@@ -1,11 +1,11 @@
-# NPT Bulk Equilibration Workflow - NPBC Production
-# Non-periodic cavity with frozen mean-field bias
-# Extracted from: alanine_cavity_R20_from_npt.data
-# Bias: frozen (opt no) - bias parameters from 20 Å optimisation
-# Duration: 5 ns (5,000,000 steps @ 1 fs/step)
+# NPBC Extracted-System NVT Equilibration
+# Fixed-box NVT at 300 K in 20 Å spherical cavity
+# Input: restart from NPBC minimization
+# Output: restart for NPBC production
+# Duration: 100 ps (100,000 steps @ 1 fs)
 # Date: 2026-04-01
 
-log                 npbc_production.log
+log                 npbc_equilibration.log
 
 units               metal
 atom_style          molecular
@@ -34,23 +34,23 @@ variable            T                equal 300.0
 variable            dt               equal 0.001
 variable            tdamp            equal 0.1
 
-# Solute anchoring (spring tether to prevent drift)
+# Solute anchoring (weak spring tether)
 variable            anchor_k         equal 0.3
 
 # Integration parameters
 variable            rmom_every       index 10
 
-# Production run parameters
-variable            prod_steps       index 5000000
+# Equilibration run parameters
+variable            eq_steps         index 100000
 variable            thermo_stride    index 500
 variable            dump_stride      index 500
 variable            dens_stride      index 1000
 
-# Read system from equilibrated NPBC restart
-read_restart        ./restart_npbc_eq_final.lammps
+# Read from minimized restart
+read_restart        ./restart_npbc_minimize.lammps
 timestep            ${dt}
 
-# ML potential: MACE-OFF23 (unified descriptor interface)
+# ML potential: MACE-OFF23
 pair_style          mliap unified ${model_file} 0
 pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
 
@@ -58,7 +58,7 @@ pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
 group               solute molecule 1
 group               solvent subtract all solute
 
-# Compute temperatures separately
+# Compute temperatures
 compute             t_solute  solute temp
 compute             t_solvent solvent temp
 compute             com_solv  solvent com
@@ -69,13 +69,13 @@ thermo_style        custom step time temp c_t_solute c_t_solvent v_rcom_solv eto
 thermo              ${thermo_stride}
 thermo_modify       flush yes
 
-# ===== NPBC PRODUCTION (5 ns) =====
-print ">>> NPBC Production: 5 ns at T=300K, sphere R=20 Å, frozen bias"
+# ===== NPBC NVT EQUILIBRATION (100 ps, fixed box) =====
+print ">>> NPBC Equilibration: 100 ps NVT at T=300K, sphere R=20 Å, frozen bias"
 
 # Solute anchor
 fix                 anchor    solute spring tether ${anchor_k} 0.0 0.0 0.0 0.0
 
-# Thermostat: separate NVT control for solute and solvent (matches reference)
+# Thermostat: separate NVT for solute and solvent
 fix                 int_sol   solute nvt temp ${T} ${T} ${tdamp}
 fix                 int_solv  solvent nvt temp ${T} ${T} ${tdamp}
 
@@ -85,19 +85,18 @@ fix                 rmom      all momentum ${rmom_every} linear 1 1 1
 # Cavity boundary: reflective sphere
 fix                 wall      solvent cavity/reflect sphere 0.0 0.0 0.0 ${R} 0
 
-# Mean-field bias: FROZEN from stage13 (opt no)
-fix                 mf        solvent cavity/meanfield sphere 0.0 0.0 0.0 ${R} ${rho0} ${dr} ${nl} vdwparm ${vdwparm_file} gauout ./gau_alanine_nbpc_prod_final.out vdw_scale ${vdw_scale} opt no gaufile ${gaufile} write_every 1 dens yes dens_every ${dens_stride} densfile ./dens_shells_alanine_nbpc_prod.dat
+# Mean-field bias: FROZEN from optimised R=20 Å parameters (opt no)
+fix                 mf        solvent cavity/meanfield sphere 0.0 0.0 0.0 ${R} ${rho0} ${dr} ${nl} vdwparm ${vdwparm_file} gauout ./gau_alanine_nbpc_eq_final.out vdw_scale ${vdw_scale} opt no gaufile ${gaufile} write_every 1 dens yes dens_every ${dens_stride} densfile ./dens_shells_alanine_nbpc_eq.dat
 
 # Trajectory output
-dump                dprod all custom ${dump_stride} ./traj_alanine_nbpc_prod.dump id mol type x y z
-dump_modify         dprod sort id append no
+dump                deq all custom ${dump_stride} ./traj_alanine_nbpc_eq.dump id mol type x y z
+dump_modify         deq sort id append no
 
-# Run production
-run                 ${prod_steps}
+# Run equilibration
+run                 ${eq_steps}
 
-# Final outputs
-write_restart       ./restart_alanine_nbpc_prod_final.lammps
-write_data          ./alanine_nbpc_prod_final.data
+# Save restart for production
+write_restart       ./restart_npbc_eq_final.lammps
+write_data          ./npbc_eq_final.data
 
-print ">>> NPBC Production Complete (5 ns)"
-print ">>> Output: traj_alanine_nbpc_prod.dump, dens_shells_alanine_nbpc_prod.dat"
+print ">>> NPBC NVT Equilibration Complete (100 ps)"

@@ -12,13 +12,13 @@ WHAT THIS DOES
 
 Generates two production-ready systems from identical NPT-equilibrated bulk:
 
-  1. NPBC SPHERE (R=15 Å)
+  1. NPBC SPHERE (R=20 Å)
      → For cavity/reflect + frozen mean-field bias
-     → Output: alanine_cavity_R15_from_npt.data
+     → Output: alanine_cavity_R20_from_npt.data
 
-  2. PBC CUBE (equiv. volume ≈ 24.2 Å edge)
+  2. PBC CUBE (40 Å cube ≈ 40 Å edge)
      → For periodic NVT/NPT production
-     → Output: alanine_pbc_from_npt.data
+     → Output: alanine_pbc_cube40_from_npt.data
 
 Both at target density: 0.037235960250849326 mol/Å³ (from stage13)
 
@@ -37,8 +37,8 @@ QUICK START (3 STEPS)
 
 3. GET OUTPUTS
    $ ls runs/data/
-   ✓ alanine_cavity_R15_from_npt.data     (NPBC sphere)
-   ✓ alanine_pbc_from_npt.data            (PBC cube)
+   ✓ alanine_cavity_R20_from_npt.data     (NPBC sphere)
+   ✓ alanine_pbc_cube40_from_npt.data            (PBC cube)
 
 ================================================================================
 DOCUMENTATION
@@ -120,8 +120,8 @@ System:
   Total atoms:        ~11,400 (initial)
 
 Extraction:
-  NPBC sphere:        R = 15 Å
-  PBC cube:           edge ≈ 24.2 Å (equiv. volume)
+  NPBC sphere:        R = 20 Å
+  PBC cube:           edge ≈ 40 Å (40 Å cube)
   Final systems:      ~1,400 atoms each
 
 Simulation:
@@ -169,8 +169,8 @@ TYPICAL WORKFLOW
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ 5. EXTRACTION (<1 min)                                                 │
 │    extract_sphere_cube.py                                              │
-│    ├─ 15 Å sphere → alanine_cavity_R15_from_npt.data                  │
-│    └─ Equiv. cube → alanine_pbc_from_npt.data                         │
+│    ├─ 20 Å sphere → alanine_cavity_R20_from_npt.data                  │
+│    └─ 40 Å cube → alanine_pbc_cube40_from_npt.data                         │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ================================================================================
@@ -178,8 +178,8 @@ OUTPUTS
 ================================================================================
 
 PRIMARY (Use in production):
-  runs/data/alanine_cavity_R15_from_npt.data    (~50 KB, 1402 atoms)
-  runs/data/alanine_pbc_from_npt.data           (~50 KB, 1402 atoms)
+  runs/data/alanine_cavity_R20_from_npt.data    (~50 KB, 1402 atoms)
+  runs/data/alanine_pbc_cube40_from_npt.data           (~50 KB, 1402 atoms)
 
 DIAGNOSTIC (Check convergence):
   runs/logs/phase1_minimize_warmup.log

@@ -1,7 +1,7 @@
 # NPT Bulk Equilibration + Sphere/Cube Extraction Workflow
 
 **Date:** 2026-03-24  
-**Purpose:** Generate representative NPT-equilibrated bulk water system, then extract both NPBC (15 Å sphere) and PBC (equivalent cube) systems for production runs.
+**Purpose:** Generate representative NPT-equilibrated bulk water system, then extract both NPBC (20 Å sphere) and PBC (40 Å cube) systems for production runs.
 
 ---
 
@@ -12,14 +12,14 @@ This workflow implements a robust protocol for preparing comparison systems:
 1. **Phase 1 (100 ps):** Energy minimization + gentle temperature ramp (25K → 200K)
 2. **Phase 2 (500 ps):** NPT equilibration at P=1 atm, T=300K (extract density target)
 3. **Phase 3 (500 ps):** NPT production run (statistics collection)
-4. **Extraction:** From final frame, cut 15 Å NPBC sphere and equivalent-volume PBC cube
+4. **Extraction:** From final frame, cut 20 Å NPBC sphere and 40 Å PBC cube
 
 ### Key Design Choices
 
 - **Target density:** `rho0 = 0.037235960250849326 mol/Å³` (from stage13 optimization .env)
 - **Bulk system:** 3800 water molecules in ~35 Å box (larger than final systems for better bulk representation)
 - **Alanine dipeptide:** Solute forces are zeroed during NPT, and the extracted systems are explicitly recentered for comparison-ready production runs
-- **Extraction:** Both sphere and cube are written with the solute COM at the origin
+- **Extraction:** Both sphere and cube are written with the solute COM at the origin; the 40 Å cube encloses the 20 Å sphere
 - **PBC production:** Periodic comparison run uses a weak tether to keep alanine at the cube center
 
 ---
@@ -96,8 +96,8 @@ This will:
 
 ```bash
 ls -la runs/data/
-# alanine_cavity_R15_from_npt.data     (NPBC, ~1400 atoms)
-# alanine_pbc_from_npt.data            (PBC, ~1400 atoms)
+# alanine_cavity_R20_from_npt.data     (NPBC, ~4500 atoms)
+# alanine_pbc_cube40_from_npt.data     (PBC, ~6000 atoms)
 
 tail -20 runs/logs/phase3_npt_prod.log
 # Check final density and box size
@@ -159,14 +159,14 @@ Steps:
 
 **Input:** `bulk_water_alanine_npt_final.data`  
 **Output:** 
-- `alanine_cavity_R15_from_npt.data` (NPBC sphere, R=15 Å)
-- `alanine_pbc_from_npt.data` (PBC cube, edge≈24.2 Å)
+- `alanine_cavity_R20_from_npt.data` (NPBC sphere, R=20 Å)
+- `alanine_pbc_cube40_from_npt.data` (PBC cube, edge=40 Å)
 
 Process:
 1. Read final NPT frame
 2. Compute solute COM (alanine, mol_id=1)
-3. Extract all atoms within 15 Å sphere → NPBC system
-4. Extract all atoms within cube bounds → PBC system
+3. Extract all atoms within 20 Å sphere → NPBC system
+4. Extract all atoms within 40 Å cube bounds → PBC system
 5. Renumber atoms sequentially
 6. Write .data files with correct headers
 
@@ -187,8 +187,8 @@ Edit `configs/config_npt_bulk.env` to customize:
 | `RHO0_MOL_A3` | 0.037235960250849326 | Target bulk density (mol/Å³) |
 | `RHO_GCC` | 1.11391659 | Density validation (g/cm³) |
 | `N_WATER_BULK` | 3800 | Bulk waters (larger = better, slower) |
-| `RADIUS_A` | 15.0 | NPBC sphere radius (Å) |
-| `CUBE_EDGE_A` | 24.2 | PBC cube edge (Å) |
+| `SPHERE_R_A` | 20.0 | NPBC sphere radius (Å) |
+| `CUBE_EDGE_A` | 40.0 | PBC cube edge (Å) |
 | `TEMP_K` | 300.0 | Temperature (K) |
 | `PRESS_ATM` | 1.0 | Pressure (atm) |
 | `DT_FS` | 1.0 | Timestep (fs) |
@@ -274,8 +274,8 @@ After successful workflow run:
 
 | File | Size | Use |
 |------|------|-----|
-| `alanine_cavity_R15_from_npt.data` | ~50 KB | NPBC production (cavity/reflect + frozen bias) |
-| `alanine_pbc_from_npt.data` | ~50 KB | PBC production (periodic, equivalent volume, alanine centered) |
+| `alanine_cavity_R20_from_npt.data` | ~150 KB | NPBC production (cavity/reflect + frozen bias) |
+| `alanine_pbc_cube40_from_npt.data` | ~200 KB | PBC production (periodic, 40 Å cube, alanine centered) |
 
 ### Diagnostics (saved in runs/)
 
@@ -292,7 +292,7 @@ After successful workflow run:
 
 ### NPBC Production (From Sphere)
 
-Copy `alanine_cavity_R15_from_npt.data` to your NPBC production folder and run:
+Copy `alanine_cavity_R20_from_npt.data` to your NPBC production folder and run:
 
 ```bash
 # With frozen bias from stage13 (opt no)
@@ -301,7 +301,7 @@ lmp -in run_nvt_alanine_nbpc_off23_stage13_prod_frozen.mace
 
 ### PBC Production (From Cube)
 
-Copy `alanine_pbc_from_npt.data` to your PBC production folder and run:
+Copy `alanine_pbc_cube40_from_npt.data` to your PBC production folder and run:
 
 ```bash
 # With equivalent density and a weak center tether on alanine

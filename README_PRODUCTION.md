@@ -10,17 +10,17 @@
 The workflow now includes **full production simulation capabilities**:
 
 ### NPBC Production (`npbc_production/`)
-- **System:** 15 Å sphere from NPT extraction
+- **System:** 20 Å sphere from NPT extraction
 - **Boundary:** Non-periodic, reflective sphere (`cavity/reflect`)
-- **Bias:** Frozen mean-field from stage13 (`opt no`)
-- **Duration:** 5 ns production
+- **Bias:** Frozen mean-field from 20 Å optimisation (`opt no`)
+- **Pipeline:** minimize → NVT equilibration (100 ps) → NVT production (5 ns)
 - **Output:** Trajectory, density shells, final structure
 
 ### PBC Production (`pbc_production/`)
-- **System:** Equivalent-volume cube from NPT extraction
+- **System:** 40 Å cube from NPT extraction (encloses 20 Å sphere)
 - **Boundary:** Periodic cubic box with alanine tethered at box center
 - **Bias:** None (direct comparison)
-- **Duration:** 5 ns production
+- **Pipeline:** minimize → NVT equilibration (100 ps) → NVT production (5 ns)
 - **Output:** Trajectory, final structure
 
 Both production runs use **identical MACE-OFF23 model**, extracted from same NPT frame, same temperature (300K).
@@ -37,14 +37,14 @@ Both production runs use **identical MACE-OFF23 model**, extracted from same NPT
 │ Phase 2: NPT equilibration (500 ps)                         │
 │ Phase 3: NPT production (500 ps)                            │
 │ ↓                                                            │
-│ Extract: 15 Å NPBC sphere + equiv. PBC cube                │
+│ Extract: 20 Å NPBC sphere + 40 Å PBC cube                  │
 └──────────────────────────────────────────────────────────────┘
                          ↓
         ┌────────────────┴────────────────┐
         ↓                                 ↓
 ┌─────────────────────────┐    ┌──────────────────────┐
-│ STEP 2: NPBC Production │    │ STEP 3: PBC Prod.    │
-│ (5 ns, ~3–4 hours)      │    │ (5 ns, ~3–4 hours)  │
+│ STEP 2: NPBC Pipeline    │    │ STEP 3: PBC Pipeline │
+│ min→eq→prod (5+ ns)     │    │ min→eq→prod (5+ ns) │
 ├─────────────────────────┤    ├──────────────────────┤
 │ • Frozen sphere bias    │    │ • Periodic box       │
 │ • cavity/reflect        │    │ • No bias            │
@@ -81,27 +81,30 @@ npt_bulk_equilibration_workflow/
 │   ├── 02_npt_equilibration.mace           Phase 2
 │   └── 03_npt_production.mace              Phase 3
 │
-├── npbc_production/                        ← NEW
+├── npbc_production/                        ← UPDATED (3-stage pipeline)
 │   ├── MACE-OFF23_small.model-mliap_lammps_float32.pt  (Model)
 │   ├── bias/
-│   │   ├── VDWPARM_R15_S0125_step5000_stage13_outerSingles41_60.dat
-│   │   └── gau_stage13.dat                 (Frozen bias)
-│   ├── run_npbc_production.mace            Input script
-│   ├── launch_npbc.sh                      Local launcher
+│   │   └── (R20 bias files — must be supplied before running)
+│   ├── run_npbc_minimize.mace              Minimization input
+│   ├── run_npbc_equilibration.mace         NVT equilibration input
+│   ├── run_npbc_production.mace            NVT production input
+│   ├── launch_npbc.sh                      Local launcher (3-stage)
 │   ├── submit_npbc_leonardo.sh             SLURM template
 │   └── logs/                               (created on run)
 │
-├── pbc_production/                         ← NEW
+├── pbc_production/                         ← UPDATED (3-stage pipeline)
 │   ├── MACE-OFF23_small.model-mliap_lammps_float32.pt  (Model)
-│   ├── run_pbc_production.mace             Input script
-│   ├── launch_pbc.sh                       Local launcher
+│   ├── run_pbc_minimize.mace               Minimization input
+│   ├── run_pbc_equilibration.mace          NVT equilibration input
+│   ├── run_pbc_production.mace             NVT production input
+│   ├── launch_pbc.sh                       Local launcher (3-stage)
 │   ├── submit_pbc_leonardo.sh              SLURM template
 │   └── logs/                               (created on run)
 │
 ├── runs/
 │   ├── data/
-│   │   ├── alanine_cavity_R15_from_npt.data     (NPBC input)
-│   │   └── alanine_pbc_from_npt.data            (PBC input)
+│   │   ├── alanine_cavity_R20_from_npt.data     (NPBC input)
+│   │   └── alanine_pbc_cube40_from_npt.data     (PBC input)
 │   └── logs/                                    (NPT logs)
 │
 ├── run_all_leonardo.sh                     ← NEW: Sequential script
@@ -261,8 +264,8 @@ scp utente@leonardo.cineca.it:/work/npt_workflow/pbc_production/alanine_*_final.
 ### After NPT (runs/data/)
 
 ```
-alanine_cavity_R15_from_npt.data         (1402 atoms, NPBC sphere)
-alanine_pbc_from_npt.data                (1402 atoms, PBC cube)
+alanine_cavity_R20_from_npt.data         (NPBC 20 Å sphere)
+alanine_pbc_cube40_from_npt.data         (PBC 40 Å cube)
 bulk_water_alanine_npt_final.data        (NPT frame before extraction)
 ```
 
@@ -308,11 +311,11 @@ pbc_prod.log                             (LAMMPS output log)
 
 | Aspect | NPBC | PBC |
 |--------|------|-----|
-| **Boundary** | Non-periodic sphere (R=15 Å) | Periodic cubic box (edge≈24.2 Å) |
+| **Boundary** | Non-periodic sphere (R=20 Å) | Periodic cubic box (edge=40 Å) |
 | **Model** | MACE-OFF23 | MACE-OFF23 |
 | **Bias** | Frozen mean-field (opt no) | None |
 | **Thermostat** | NVT, separate solute/solvent | NVT, separate solute/solvent |
-| **Anchoring** | Spring tether (k=0.3) | None (periodic) |
+| **Anchoring** | Spring tether (k=0.3) | Spring tether (k=0.3) |
 | **Solute drift** | Controlled by spring | Periodic image tracking |
 | **Density control** | Mean-field sphere + cavity/reflect | Periodic box density |
 | **Output** | Trajectory + density shells | Trajectory only |

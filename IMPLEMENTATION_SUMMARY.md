@@ -8,8 +8,8 @@
 ## Executive Summary
 
 Implemented a complete, self-contained workflow to generate NPT-equilibrated bulk water systems and extract both:
-- **NPBC sphere** (R=15 Å) for non-periodic cavity production
-- **PBC cube** (edge≈24.2 Å, equiv. volume) for periodic comparison
+- **NPBC sphere** (R=20 Å) for non-periodic cavity production
+- **PBC cube** (edge≈40 Å, 40 Å cube) for periodic comparison
 
 All inputs, scripts, documentation, and packaging tools are in:
 ```
@@ -57,11 +57,11 @@ All inputs, scripts, documentation, and packaging tools are in:
 
 ### ✓ Sphere/Cube Extraction (`scripts/extract_sphere_cube.py`)
 
-- **Sphere (15 Å):** Extract around solute COM
-  - Solute (22 atoms) + solvent (~1380 water atoms)
+- **Sphere (20 Å):** Extract around solute COM
+  - Solute (22 atoms) + solvent
   - Suitable for `cavity/reflect` and `cavity/meanfield`
   
-- **Cube (24.2 Å edge):** Equivalent volume to sphere
+- **Cube (40 Å edge):** Periodic box enclosing the 20 Å sphere
   - Solute + periodic solvent
   - Suitable for NVT/NPT production comparison
 
@@ -182,9 +182,9 @@ submit_leonardo.sh                    (Generated on packaging)
 - **Alternative:** User can adjust via `N_WATER_BULK` in config
 
 ### 3. Sphere Extraction by Distance, Cube by Axis-Aligned Bounds ✓
-- **Sphere:** All atoms within 15 Å COM distance (matches `cavity/reflect`)
-- **Cube:** All atoms within ±12.1 Å from each axis
-- **Equivalence:** Both centered on alanine COM for direct comparison
+- **Sphere:** All atoms within 20 Å COM distance (matches `cavity/reflect`)
+- **Cube:** All atoms within ±20 Å from each axis (40 Å edge)
+- **Centering:** Both centered on alanine COM for direct comparison
 
 ### 4. Target Density from .env File ✓
 - **Value:** `0.037235960250849326 mol/Å³` from `stage13_runtime.env`
@@ -226,8 +226,8 @@ submit_leonardo.sh                    (Generated on packaging)
 
 | File | Size | Atoms | Type | Use |
 |------|------|-------|------|-----|
-| `alanine_cavity_R15_from_npt.data` | ~50 KB | 1402 | NPBC sphere | Production (cavity/reflect + meanfield) |
-| `alanine_pbc_from_npt.data` | ~50 KB | 1402 | PBC cube | Production (NVT/NPT comparison) |
+| `alanine_cavity_R20_from_npt.data` | ~50 KB | 1402 | NPBC sphere | Production (cavity/reflect + meanfield) |
+| `alanine_pbc_cube40_from_npt.data` | ~50 KB | 1402 | PBC cube | Production (NVT/NPT comparison) |
 
 ### Diagnostic Files
 
@@ -296,8 +296,8 @@ python3 scripts/extract_sphere_cube.py \
 - Comparison: Direct NPBC vs. PBC without bias confounds
 
 ### File Naming Convention
-- NPBC: `alanine_cavity_R15_from_npt.data`
-- PBC: `alanine_pbc_from_npt.data`
+- NPBC: `alanine_cavity_R20_from_npt.data`
+- PBC: `alanine_pbc_cube40_from_npt.data`
 - Matches existing stage12/13 naming scheme
 
 ---
@@ -376,7 +376,7 @@ sbatch submit_leonardo.sh
 ✅ **Complete workflow implemented:**
 - Generate bulk system (3800 waters + alanine)
 - Run 3-phase NPT protocol (1.1 M steps ≈ 2.5–3 hours)
-- Extract NPBC sphere (R=15 Å) and PBC cube (equiv. volume)
+- Extract NPBC sphere (R=20 Å) and PBC cube (40 Å cube)
 - Package everything for Leonardo BOOSTER transfer
 
 ✅ **All density targets locked to stage13 optimization:** `0.037235960250849326 mol/Å³`

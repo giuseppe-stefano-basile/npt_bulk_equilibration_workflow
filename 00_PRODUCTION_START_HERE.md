@@ -30,8 +30,8 @@ NPBC Production  PBC Production
 ### 2. System Extraction (`extraction/`)
 - **Extraction Scripts**: Python code to extract from NPT output
 - **Outputs**:
-  - `NPBC_system.data`: 15 Å sphere (~1402 atoms)
-  - `PBC_system.data`: 24.2 Å cube (~1402 atoms, equivalent volume)
+  - `NPBC_system.data`: 20 Å sphere (~1402 atoms)
+  - `PBC_system.data`: 40 Å cube (~1402 atoms, 40 Å cube)
 
 ### 3. NPBC Production (`npbc_production/`)
 - **Duration**: 5 nanoseconds
@@ -39,8 +39,8 @@ NPBC Production  PBC Production
 - **Bias**: Frozen Gaussian + cavity/meanfield (opt no = frozen from stage13)
 - **Embedded Files**:
   - `MACE-OFF23_small.model-mliap_lammps_float32.pt`
-  - `bias/VDWPARM_R15_S0125_step5000_stage13_outerSingles41_60.dat`
-  - `bias/gau_stage13.dat`
+  - `bias/(R20 bias — see NPBC_VDWPARM_FILE in config)`
+  - `bias/gau_R20.dat (must be supplied)`
 
 ### 4. PBC Production (`pbc_production/`)
 - **Duration**: 5 nanoseconds
@@ -108,8 +108,8 @@ npt_bulk_equilibration_workflow/
 │   ├── submit_npbc_leonardo.sh                # SLURM template
 │   ├── MACE-OFF23_small.model-*.pt            # Model file ✓
 │   ├── bias/
-│   │   ├── VDWPARM_R15_S0125_step5000_...dat # VDW parameters
-│   │   └── gau_stage13.dat                   # Gaussian cavity
+│   │   ├── (R20 VDWPARM — must be supplied) # VDW parameters
+│   │   └── gau_R20.dat (must be supplied)                   # Gaussian cavity
 │   └── logs/                                  # Output directory
 ├── pbc_production/                            # PBC phase (self-contained)
 │   ├── run_pbc_production.mace                # LAMMPS input
@@ -170,7 +170,7 @@ CPU cores: 16 (KOKKOS OpenMP)
 | Temperature | 300 K | 300 K | Bicanonical: solute @ 300K, solvent @ 300K |
 | Boundary | Non-periodic | Periodic | f f f vs p p p |
 | Solute Tether | Yes (k=0.3) | Yes (k=0.3) | Weak restraint (spring-constant units) |
-| Cavity Boundary | Reflect (15 Å sphere) | None | Soft walls for NPBC |
+| Cavity Boundary | Reflect (20 Å sphere) | None | Soft walls for NPBC |
 | Bias Potential | Frozen (opt no) | None | Stage13 Gaussian cavity, frozen |
 | Ensemble | NVT | NVT | Volumes from NPT extraction |
 

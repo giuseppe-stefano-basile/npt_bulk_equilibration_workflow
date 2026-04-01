@@ -1,0 +1,53 @@
+# NPBC Extracted-System Minimization
+# Relax extracted solvent around fixed alanine in 20 Å spherical cavity
+# Input: alanine_cavity_R20_from_npt.data
+# Output: restart for NPBC equilibration
+# Date: 2026-04-01
+
+log                 npbc_minimize.log
+
+units               metal
+atom_style          molecular
+atom_modify         map yes
+newton              on
+dimension           3
+boundary            f f f
+
+variable            model_file       string "./MACE-OFF23_small.model-mliap_lammps_float32.pt"
+variable            species1         string "C"
+variable            species2         string "N"
+variable            species3         string "O"
+variable            species4         string "H"
+
+# Geometry (20 Å cavity)
+variable            R                equal 20.0
+
+# Read extracted sphere
+read_data           ../runs/data/alanine_cavity_R20_from_npt.data
+
+# ML potential: MACE-OFF23
+pair_style          mliap unified ${model_file} 0
+pair_coeff          * * ${species1} ${species2} ${species3} ${species4}
+
+# Group definitions
+group               solute molecule 1
+group               solvent subtract all solute
+
+# Freeze solute during minimization
+fix                 freeze_solute solute setforce 0.0 0.0 0.0
+
+# Cavity boundary: reflective sphere (keep solvent inside during minimize)
+fix                 wall solvent cavity/reflect sphere 0.0 0.0 0.0 ${R} 0
+
+# Minimization
+print ">>> NPBC Minimization: relax solvent around fixed alanine, R=20 Å cavity"
+minimize            1.0e-6 1.0e-8 10000 100000
+
+# Clean up
+unfix               freeze_solute
+
+# Save restart for equilibration
+write_restart       ./restart_npbc_minimize.lammps
+write_data          ./npbc_minimized.data
+
+print ">>> NPBC Minimization Complete"

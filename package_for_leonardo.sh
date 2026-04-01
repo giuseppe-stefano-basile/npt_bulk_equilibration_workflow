@@ -139,8 +139,8 @@ Source: ${WORKFLOW_DIR}
 === OUTPUT FILES ===
 
 After successful workflow:
-  - runs/data/alanine_cavity_R15_from_npt.data      (NPBC sphere)
-  - runs/data/alanine_pbc_from_npt.data             (PBC cube)
+  - runs/data/alanine_cavity_R20_from_npt.data      (NPBC 20 Å sphere)
+  - runs/data/alanine_pbc_cube40_from_npt.data       (PBC 40 Å cube)
   - runs/logs/phase{1,2,3}_*.log                    (diagnostics)
   - runs/traj_bulk_npt_*.dump                       (trajectories)
   - runs/restart_npt_phase*.lammps                  (checkpoints)
@@ -157,8 +157,8 @@ System size:
   Total atoms: ~11,422
 
 Extraction targets:
-  NPBC sphere: R = 15 Å
-  PBC cube: edge ≈ 24.2 Å (equiv. volume)
+  NPBC sphere: R = 20 Å
+  PBC cube: edge = 40 Å (encloses 20 Å sphere)
 
 Runtime (GPU):
   Phase 1 (minimize + warmup): ~10 min
