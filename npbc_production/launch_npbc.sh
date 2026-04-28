@@ -4,7 +4,7 @@
 # 20 Å sphere cavity with frozen mean-field bias
 # Date: 2026-04-01
 
-set -e
+set -euo pipefail
 
 WORKFLOW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NPBC_DIR="${WORKFLOW_DIR}/npbc_production"
@@ -13,6 +13,8 @@ NPBC_DIR="${WORKFLOW_DIR}/npbc_production"
 if [[ -f "${WORKFLOW_DIR}/configs/config_npt_bulk.env" ]]; then
     source "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
 fi
+source "${WORKFLOW_DIR}/scripts/leonardo_env.sh"
+setup_leonardo_environment
 
 echo "========================================"
 echo "NPBC Pipeline (minimize → eq → prod)"
@@ -37,8 +39,8 @@ fail_bias() {
     exit 1
 }
 
-[[ -z "${NPBC_VDWPARM_FILE}" ]] && fail_bias
-[[ -z "${NPBC_GAU_FILE}" ]]     && fail_bias
+[[ -z "${NPBC_VDWPARM_FILE:-}" ]] && fail_bias
+[[ -z "${NPBC_GAU_FILE:-}" ]]     && fail_bias
 [[ ! -f "${NPBC_DIR}/${NPBC_VDWPARM_FILE}" ]] && [[ ! -f "${NPBC_VDWPARM_FILE}" ]] && fail_bias
 [[ ! -f "${NPBC_DIR}/${NPBC_GAU_FILE}" ]]     && [[ ! -f "${NPBC_GAU_FILE}" ]]     && fail_bias
 
@@ -75,6 +77,7 @@ KOKKOS_ARGS="-k on g 1 -sf kk -pk kokkos neigh half newton on"
 export OMP_NUM_THREADS=1
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 LMP="${LMP_BIN:-lmp}"
+check_lammps_runtime "${LMP}"
 echo "LAMMPS: ${LMP}  (GPU $CUDA_VISIBLE_DEVICES)"
 
 echo "[1/5] Checking files..."
@@ -88,7 +91,7 @@ echo ""
 # ── Stage 1: Minimization ────────────────────────────────────────────────────
 echo "[2/5] NPBC minimization (solvent relaxation around fixed alanine)..."
 mkdir -p logs
-$LMP $KOKKOS_ARGS -in run_npbc_minimize.mace 2>&1 | tee -a logs/npbc_minimize.log
+"${LMP}" ${KOKKOS_ARGS} -in run_npbc_minimize.mace 2>&1 | tee -a logs/npbc_minimize.log
 echo "✓ Minimization complete"
 echo ""
 
@@ -101,7 +104,7 @@ sed \
     -e "s|__NPBC_GAU_FILE__|${GAU_RESOLVED}|g" \
     run_npbc_equilibration.mace > _run_npbc_equilibration_patched.mace
 
-$LMP $KOKKOS_ARGS -in _run_npbc_equilibration_patched.mace 2>&1 | tee -a logs/npbc_eq.log
+"${LMP}" ${KOKKOS_ARGS} -in _run_npbc_equilibration_patched.mace 2>&1 | tee -a logs/npbc_eq.log
 echo "✓ Equilibration complete"
 echo ""
 
@@ -114,7 +117,7 @@ sed \
     -e "s|__NPBC_GAU_FILE__|${GAU_RESOLVED}|g" \
     run_npbc_production.mace > _run_npbc_production_patched.mace
 
-$LMP $KOKKOS_ARGS -in _run_npbc_production_patched.mace 2>&1 | tee -a logs/npbc_prod.log
+"${LMP}" ${KOKKOS_ARGS} -in _run_npbc_production_patched.mace 2>&1 | tee -a logs/npbc_prod.log
 
 echo "[5/5] Verifying outputs..."
 [ -f "traj_alanine_nbpc_prod.dump" ] && echo "✓ Trajectory: traj_alanine_nbpc_prod.dump"

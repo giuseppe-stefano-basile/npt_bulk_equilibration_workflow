@@ -10,14 +10,15 @@
 #SBATCH --mail-type=END,FAIL
 #SBATCH --output=logs/pbc_prod_%j.log
 
-module load profile/deeplrn
-module load gcc cuda cmake
+set -euo pipefail
 
 # Source config for LMP_BIN and environment variables
 WORKFLOW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 if [[ -f "${WORKFLOW_DIR}/configs/config_npt_bulk.env" ]]; then
     source "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
 fi
+source "${WORKFLOW_DIR}/scripts/leonardo_env.sh"
+setup_leonardo_environment
 
 echo "Starting PBC 3-stage pipeline (minimize → eq → prod) on GPU $CUDA_VISIBLE_DEVICES"
 echo "Job ID: $SLURM_JOB_ID"

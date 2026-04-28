@@ -15,7 +15,7 @@
 #
 # Usage: sbatch submit_npt_leonardo.sh
 
-set -e
+set -euo pipefail
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "NPT BULK EQUILIBRATION - LEONARDO BOOSTER"
@@ -27,16 +27,6 @@ echo "  Nodes: $SLURM_NNODES"
 echo "  CPUs per task: $SLURM_CPUS_PER_TASK"
 echo "  GPU: $SLURM_GPUS"
 echo "  Memory: $SLURM_MEM_PER_NODE MB"
-echo ""
-
-# Set up Leonardo environment
-echo "Loading Leonardo modules..."
-module load profile/deeplrn 2>/dev/null || true
-module load gcc/11.3.0 2>/dev/null || true
-module load cuda/12.1 2>/dev/null || true
-module load cmake/3.27.0 2>/dev/null || true
-
-echo "✓ Environment configured"
 echo ""
 
 # Resolve script/workflow directories robustly under sbatch spooled execution
@@ -65,6 +55,15 @@ if [[ -z "${SCRIPT_DIR}" ]]; then
         WORKFLOW_DIR="$(dirname "$SCRIPT_DIR")"
     fi
 fi
+
+if [[ -f "${WORKFLOW_DIR}/configs/config_npt_bulk.env" ]]; then
+    source "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
+fi
+source "${WORKFLOW_DIR}/scripts/leonardo_env.sh"
+setup_leonardo_environment
+
+echo "✓ Environment configured"
+echo ""
 
 # Run NPT phase
 echo "Starting NPT bulk equilibration..."

@@ -4,7 +4,7 @@
 # Runs 3-phase NPT protocol to generate bulk water system with fixed alanine
 #
 
-set -e  # Exit on error
+set -euo pipefail  # Exit on error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKFLOW_DIR="$(dirname "$SCRIPT_DIR")"
@@ -22,57 +22,8 @@ else
     echo "[✗] Configuration not found: $WORKFLOW_DIR/configs/config_npt_bulk.env"
     exit 1
 fi
-
-if ! type module >/dev/null 2>&1 && [[ -f /etc/profile.d/modules.sh ]]; then
-    source /etc/profile.d/modules.sh
-fi
-
-if type module >/dev/null 2>&1; then
-    module load profile/deeplrn 2>/dev/null || true
-    if [[ -n "${GCC_MODULE:-}" ]]; then
-        module load "${GCC_MODULE}" 2>/dev/null || true
-    else
-        module load gcc 2>/dev/null || true
-    fi
-    if [[ -n "${CUDA_MODULE:-}" ]]; then
-        module load "${CUDA_MODULE}" 2>/dev/null || true
-    else
-        module load cuda 2>/dev/null || true
-    fi
-    if [[ -n "${CMAKE_MODULE:-}" ]]; then
-        module load "${CMAKE_MODULE}" 2>/dev/null || true
-    else
-        module load cmake 2>/dev/null || true
-    fi
-    if [[ -n "${MKL_MODULE:-}" ]]; then
-        module load "${MKL_MODULE}" 2>/dev/null || true
-    fi
-    if [[ -n "${GSL_MODULE:-}" ]]; then
-        module load "${GSL_MODULE}" 2>/dev/null || true
-    fi
-    if [[ -n "${MPI_MODULE:-}" ]]; then
-        module load "${MPI_MODULE}" 2>/dev/null || true
-    fi
-    if [[ -n "${PYTHON_MODULE:-}" ]]; then
-        module load "${PYTHON_MODULE}" 2>/dev/null || true
-    fi
-fi
-
-if [[ -n "${PLUMED_ROOT:-}" ]]; then
-    export PLUMED_ROOT
-    export PATH="${PLUMED_ROOT}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${PLUMED_ROOT}/lib:${LD_LIBRARY_PATH:-}"
-    export PKG_CONFIG_PATH="${PLUMED_ROOT}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-fi
-
-if command -v python >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python)"
-elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3)"
-else
-    echo "[✗] No Python interpreter available after environment setup"
-    exit 1
-fi
+source "$WORKFLOW_DIR/scripts/leonardo_env.sh"
+setup_leonardo_environment
 
 echo "[✓] Python: ${PYTHON_BIN} ($(${PYTHON_BIN} --version 2>&1))"
 
@@ -133,6 +84,7 @@ else
     echo "[⚠] LAMMPS not found. Set LMP_BIN in config or add lmp to PATH."
     exit 1
 fi
+check_lammps_runtime "${LAMMPS_CMD}"
 
 # Kokkos GPU flags (match reference stage13 invocation)
 KOKKOS_ARGS="-k on g 1 -sf kk -pk kokkos neigh half newton on"

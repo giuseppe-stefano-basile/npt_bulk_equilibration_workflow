@@ -14,7 +14,7 @@
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=simone.grandinetti@sns.it # mail per messaggio di fine lavoro o errore
 
-set -e
+set -euo pipefail
 
 WORKFLOW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -26,22 +26,16 @@ echo "Location: ${WORKFLOW_DIR}"
 echo "Timestamp: $(date)"
 echo ""
 
-# Module environment (Leonardo)
-module load profile/deeplrn
-module load gcc cuda cmake
-
 # Source config for LMP_BIN and environment variables
 if [[ -f "${WORKFLOW_DIR}/configs/config_npt_bulk.env" ]]; then
     source "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
     echo "✓ Configuration loaded"
 fi
+source "${WORKFLOW_DIR}/scripts/leonardo_env.sh"
+setup_leonardo_environment
 
 # Verify LAMMPS available
-if [ -z "${LMP_BIN}" ]; then
-    echo "ERROR: LMP_BIN not set"
-    echo "  Set via: export LMP_BIN=/path/to/lmp"
-    exit 1
-fi
+check_lammps_runtime "${LMP_BIN}"
 echo "LAMMPS: ${LMP_BIN}"
 echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo ""

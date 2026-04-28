@@ -16,89 +16,8 @@ fi
 
 # Load configuration
 source "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
-
-setup_python_environment() {
-    if ! type module >/dev/null 2>&1 && [[ -f /etc/profile.d/modules.sh ]]; then
-        # Ensure the module function exists in non-interactive batch shells.
-        source /etc/profile.d/modules.sh
-    fi
-
-    if type module >/dev/null 2>&1; then
-        module load profile/deeplrn 2>/dev/null || true
-        if [[ -n "${GCC_MODULE:-}" ]]; then
-            module load "${GCC_MODULE}" 2>/dev/null || true
-        else
-            module load gcc 2>/dev/null || true
-        fi
-        if [[ -n "${CUDA_MODULE:-}" ]]; then
-            module load "${CUDA_MODULE}" 2>/dev/null || true
-        else
-            module load cuda 2>/dev/null || true
-        fi
-        if [[ -n "${CMAKE_MODULE:-}" ]]; then
-            module load "${CMAKE_MODULE}" 2>/dev/null || true
-        else
-            module load cmake 2>/dev/null || true
-        fi
-        if [[ -n "${MKL_MODULE:-}" ]]; then
-            module load "${MKL_MODULE}" 2>/dev/null || true
-        fi
-        if [[ -n "${GSL_MODULE:-}" ]]; then
-            module load "${GSL_MODULE}" 2>/dev/null || true
-        fi
-        if [[ -n "${MPI_MODULE:-}" ]]; then
-            module load "${MPI_MODULE}" 2>/dev/null || true
-        fi
-        if [[ -n "${PYTHON_MODULE:-}" ]]; then
-            module load "${PYTHON_MODULE}" 2>/dev/null || true
-        fi
-    fi
-
-    if command -v python >/dev/null 2>&1; then
-        PYTHON_BIN="$(command -v python)"
-    elif command -v python3 >/dev/null 2>&1; then
-        PYTHON_BIN="$(command -v python3)"
-    else
-        echo "ERROR: No Python interpreter available after environment setup"
-        exit 1
-    fi
-
-    export PYTHON_BIN
-}
-
-setup_python_environment
-
-if [[ -n "${PLUMED_ROOT:-}" ]]; then
-    export PLUMED_ROOT
-    export PATH="${PLUMED_ROOT}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${PLUMED_ROOT}/lib:${LD_LIBRARY_PATH:-}"
-    export PKG_CONFIG_PATH="${PLUMED_ROOT}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-fi
-
-add_lammps_library_paths() {
-    local lmp_real lmp_dir lmp_prefix
-    lmp_real="$(readlink -f "${LMP_BIN}" 2>/dev/null || printf "%s" "${LMP_BIN}")"
-    lmp_dir="$(cd "$(dirname "${lmp_real}")" && pwd)"
-    lmp_prefix="$(cd "${lmp_dir}/.." && pwd)"
-
-    local candidate libdir
-    if [[ -n "${LMP_LIBRARY_PATH:-}" ]]; then
-        local old_ifs="${IFS}"
-        IFS=":"
-        for candidate in ${LMP_LIBRARY_PATH}; do
-            if [[ -d "${candidate}" ]]; then
-                export LD_LIBRARY_PATH="${candidate}:${LD_LIBRARY_PATH:-}"
-            fi
-        done
-        IFS="${old_ifs}"
-    fi
-
-    for libdir in "${lmp_prefix}/lib" "${lmp_prefix}/lib64"; do
-        if [[ -d "${libdir}" ]]; then
-            export LD_LIBRARY_PATH="${libdir}:${LD_LIBRARY_PATH:-}"
-        fi
-    done
-}
+source "${WORKFLOW_DIR}/scripts/leonardo_env.sh"
+setup_leonardo_environment
 
 # Directories
 SCRIPTS_DIR="${WORKFLOW_DIR}/scripts"
@@ -156,44 +75,13 @@ echo "Python bin: ${PYTHON_BIN}"
 echo "Python ver: $(${PYTHON_BIN} --version 2>&1)"
 echo ""
 
-if [[ -z "${LMP_BIN:-}" ]]; then
-    echo "ERROR: LMP_BIN is not set"
-    exit 1
-fi
-
-if [[ ! -x "${LMP_BIN}" ]]; then
-    echo "ERROR: LMP_BIN not executable: ${LMP_BIN}"
-    exit 1
-fi
-
-add_lammps_library_paths
+check_lammps_runtime "${LMP_BIN}"
 
 # Kokkos GPU flags (match reference stage13 invocation)
 KOKKOS_ARGS="-k on g 1 -sf kk -pk kokkos neigh half newton on"
 export OMP_NUM_THREADS=1
 export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 echo "Kokkos GPU mode: device $CUDA_VISIBLE_DEVICES"
-
-if command -v ldd >/dev/null 2>&1; then
-    LDD_OUTPUT="$(ldd "${LMP_BIN}" 2>&1 || true)"
-    if grep -q "libmpi.so.40 => not found" <<< "${LDD_OUTPUT}"; then
-        echo "ERROR: MPI runtime missing for LAMMPS (${LMP_BIN})"
-        echo "       Tried module: ${MPI_MODULE:-none}"
-        echo "       Set MPI_MODULE in configs/config_npt_bulk.env to your cluster OpenMPI module"
-        exit 1
-    fi
-    if grep -q "libplumedKernel" <<< "${LDD_OUTPUT}" && grep -q "libplumedKernel.*not found" <<< "${LDD_OUTPUT}"; then
-        echo "ERROR: PLUMED runtime missing for LAMMPS (${LMP_BIN})"
-        echo "       Set PLUMED_ROOT in configs/config_npt_bulk.env"
-        exit 1
-    fi
-    if grep -q "not found" <<< "${LDD_OUTPUT}"; then
-        echo "ERROR: LAMMPS runtime libraries missing for ${LMP_BIN}"
-        grep "not found" <<< "${LDD_OUTPUT}"
-        echo "       If this is a local LAMMPS install, set LMP_LIBRARY_PATH to the directory containing liblammps.so."
-        exit 1
-    fi
-fi
 
 # ============================================================================
 # STEP 1: Generate bulk water + alanine system

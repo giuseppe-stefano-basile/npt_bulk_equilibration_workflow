@@ -58,15 +58,14 @@ cat > npt_bulk_equilibration_workflow/submit_leonardo.sh << 'EOF'
 #SBATCH --account=<YOUR_ACCOUNT>
 #SBATCH --mail-type=END,FAIL
 
-module load profile/deeplrn
-module load gcc
-module load cuda
-module load cmake
-# Load or verify LAMMPS availability
-# module load lammps  (if available)
+set -euo pipefail
 
 cd $SLURM_SUBMIT_DIR
 export WORKFLOW_DIR="$PWD/npt_bulk_equilibration_workflow"
+source "$WORKFLOW_DIR/configs/config_npt_bulk.env"
+source "$WORKFLOW_DIR/scripts/leonardo_env.sh"
+setup_leonardo_environment
+check_lammps_runtime "$LMP_BIN"
 
 echo "Starting NPT workflow on $(date)"
 echo "GPU: $CUDA_VISIBLE_DEVICES"
@@ -123,11 +122,11 @@ Source: ${WORKFLOW_DIR}
 
 2. Prepare environment:
    cd npt_bulk_equilibration_workflow
-   module load profile/deeplrn gcc cuda cmake
+   # Environment is loaded by scripts/leonardo_env.sh from config_npt_bulk.env
 
 3. Verify/update config:
    cat configs/config_npt_bulk.env
-   # Edit if needed (especially LMP_BIN path)
+   # Edit if needed: MACE_VENV_PATH, PYLIBDIR, PLUMED_ROOT, LAMMPS_ROOT, LMP_BIN
 
 4. Submit job:
    sbatch submit_leonardo.sh
