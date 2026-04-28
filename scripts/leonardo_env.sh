@@ -25,7 +25,11 @@ load_leonardo_modules() {
     fi
 
     if [[ "${LEONARDO_MODULE_PURGE:-1}" == "1" ]]; then
-        module purge
+        echo "[env] module purge"
+        if ! module purge; then
+            echo "ERROR: module purge failed"
+            return 1
+        fi
     fi
 
     local mod
@@ -37,14 +41,36 @@ load_leonardo_modules() {
         "${CUDA_MODULE:-}" \
         "${PYTHON_MODULE:-}"
     do
-        [[ -n "${mod}" ]] && module load "${mod}"
+        if [[ -n "${mod}" ]]; then
+            echo "[env] module load ${mod}"
+            if ! module load "${mod}"; then
+                echo "ERROR: failed to load Leonardo module: ${mod}"
+                return 1
+            fi
+        fi
     done
 }
 
 activate_mace_environment() {
     if [[ -n "${MACE_VENV_PATH:-}" ]]; then
         if [[ -f "${MACE_VENV_PATH}/bin/activate" ]]; then
-            source "${MACE_VENV_PATH}/bin/activate"
+            echo "[env] activate ${MACE_VENV_PATH}"
+            local restore_nounset=0
+            case "$-" in
+                *u*) restore_nounset=1; set +u ;;
+            esac
+            # Python virtualenv activation scripts are not guaranteed to be
+            # nounset-safe; restore the caller's nounset state immediately.
+            if ! source "${MACE_VENV_PATH}/bin/activate"; then
+                if [[ "${restore_nounset}" -eq 1 ]]; then
+                    set -u
+                fi
+                echo "ERROR: failed to activate MACE environment: ${MACE_VENV_PATH}"
+                return 1
+            fi
+            if [[ "${restore_nounset}" -eq 1 ]]; then
+                set -u
+            fi
         else
             echo "WARN: MACE_VENV_PATH set but activate script not found: ${MACE_VENV_PATH}/bin/activate"
         fi
