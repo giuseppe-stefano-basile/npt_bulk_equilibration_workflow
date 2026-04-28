@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""
 """Extract 20 Å sphere and 40 Å cube from NPT final frame.
 
 Purpose:

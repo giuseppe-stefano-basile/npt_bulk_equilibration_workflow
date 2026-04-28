@@ -3,7 +3,7 @@
 # Purpose: Execute full pipeline from bulk generation to sphere/cube extraction
 # Date: 2026-03-24
 
-set -e
+set -euo pipefail
 
 # Resolve workflow root robustly (works for direct bash and sbatch-spooled execution)
 if [[ -n "${SLURM_SUBMIT_DIR:-}" ]] && [[ -f "${SLURM_SUBMIT_DIR}/configs/config_npt_bulk.env" ]]; then
@@ -75,6 +75,31 @@ if [[ -n "${PLUMED_ROOT:-}" ]]; then
     export PKG_CONFIG_PATH="${PLUMED_ROOT}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 fi
 
+add_lammps_library_paths() {
+    local lmp_real lmp_dir lmp_prefix
+    lmp_real="$(readlink -f "${LMP_BIN}" 2>/dev/null || printf "%s" "${LMP_BIN}")"
+    lmp_dir="$(cd "$(dirname "${lmp_real}")" && pwd)"
+    lmp_prefix="$(cd "${lmp_dir}/.." && pwd)"
+
+    local candidate libdir
+    if [[ -n "${LMP_LIBRARY_PATH:-}" ]]; then
+        local old_ifs="${IFS}"
+        IFS=":"
+        for candidate in ${LMP_LIBRARY_PATH}; do
+            if [[ -d "${candidate}" ]]; then
+                export LD_LIBRARY_PATH="${candidate}:${LD_LIBRARY_PATH:-}"
+            fi
+        done
+        IFS="${old_ifs}"
+    fi
+
+    for libdir in "${lmp_prefix}/lib" "${lmp_prefix}/lib64"; do
+        if [[ -d "${libdir}" ]]; then
+            export LD_LIBRARY_PATH="${libdir}:${LD_LIBRARY_PATH:-}"
+        fi
+    done
+}
+
 # Directories
 SCRIPTS_DIR="${WORKFLOW_DIR}/scripts"
 INPUTS_DIR="${WORKFLOW_DIR}/input_templates"
@@ -131,10 +156,17 @@ echo "Python bin: ${PYTHON_BIN}"
 echo "Python ver: $(${PYTHON_BIN} --version 2>&1)"
 echo ""
 
+if [[ -z "${LMP_BIN:-}" ]]; then
+    echo "ERROR: LMP_BIN is not set"
+    exit 1
+fi
+
 if [[ ! -x "${LMP_BIN}" ]]; then
     echo "ERROR: LMP_BIN not executable: ${LMP_BIN}"
     exit 1
 fi
+
+add_lammps_library_paths
 
 # Kokkos GPU flags (match reference stage13 invocation)
 KOKKOS_ARGS="-k on g 1 -sf kk -pk kokkos neigh half newton on"
@@ -143,15 +175,22 @@ export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 echo "Kokkos GPU mode: device $CUDA_VISIBLE_DEVICES"
 
 if command -v ldd >/dev/null 2>&1; then
-    if ldd "${LMP_BIN}" | grep -q "libmpi.so.40 => not found"; then
+    LDD_OUTPUT="$(ldd "${LMP_BIN}" 2>&1 || true)"
+    if grep -q "libmpi.so.40 => not found" <<< "${LDD_OUTPUT}"; then
         echo "ERROR: MPI runtime missing for LAMMPS (${LMP_BIN})"
         echo "       Tried module: ${MPI_MODULE:-none}"
         echo "       Set MPI_MODULE in configs/config_npt_bulk.env to your cluster OpenMPI module"
         exit 1
     fi
-    if ldd "${LMP_BIN}" | grep -q "libplumedKernel" && ldd "${LMP_BIN}" | grep -q "libplumedKernel.*not found"; then
+    if grep -q "libplumedKernel" <<< "${LDD_OUTPUT}" && grep -q "libplumedKernel.*not found" <<< "${LDD_OUTPUT}"; then
         echo "ERROR: PLUMED runtime missing for LAMMPS (${LMP_BIN})"
         echo "       Set PLUMED_ROOT in configs/config_npt_bulk.env"
+        exit 1
+    fi
+    if grep -q "not found" <<< "${LDD_OUTPUT}"; then
+        echo "ERROR: LAMMPS runtime libraries missing for ${LMP_BIN}"
+        grep "not found" <<< "${LDD_OUTPUT}"
+        echo "       If this is a local LAMMPS install, set LMP_LIBRARY_PATH to the directory containing liblammps.so."
         exit 1
     fi
 fi

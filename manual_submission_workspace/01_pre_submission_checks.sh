@@ -30,9 +30,11 @@ check_file() {
     fi
 }
 
-echo "[1/3] Checking required files..."
+echo "[1/5] Checking required files..."
 check_file "${WORKFLOW_DIR}/run_workflow.sh"
 check_file "${WORKFLOW_DIR}/configs/config_npt_bulk.env"
+check_file "${WORKFLOW_DIR}/scripts/generate_bulk_alanine_npt.py"
+check_file "${WORKFLOW_DIR}/scripts/extract_sphere_cube.py"
 check_file "${WORKFLOW_DIR}/npbc_production/launch_npbc.sh"
 check_file "${WORKFLOW_DIR}/npbc_production/submit_npbc_leonardo.sh"
 check_file "${WORKFLOW_DIR}/pbc_production/launch_pbc.sh"
@@ -50,7 +52,66 @@ check_file "${WORKFLOW_DIR}/npbc_production/${MODEL_FILE}"
 check_file "${WORKFLOW_DIR}/pbc_production/${MODEL_FILE}"
 echo ""
 
-echo "[2/3] Ensuring output directories exist..."
+echo "[2/5] Validating Python syntax..."
+if command -v python >/dev/null 2>&1; then
+    PYTHON_CHECK_BIN="$(command -v python)"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_CHECK_BIN="$(command -v python3)"
+else
+    PYTHON_CHECK_BIN=""
+fi
+
+if [[ -z "${PYTHON_CHECK_BIN}" ]]; then
+    echo "  [MISSING] No python/python3 interpreter available"
+    missing_required=1
+else
+    if "${PYTHON_CHECK_BIN}" -m py_compile \
+        "${WORKFLOW_DIR}/scripts/generate_bulk_alanine_npt.py" \
+        "${WORKFLOW_DIR}/scripts/extract_sphere_cube.py"; then
+        echo "  [OK] Python scripts compile"
+    else
+        echo "  [MISSING] Python syntax check failed"
+        missing_required=1
+    fi
+fi
+echo ""
+
+echo "[3/5] Validating LAMMPS runtime..."
+if [[ -z "${LMP_BIN:-}" ]]; then
+    echo "  [MISSING] LMP_BIN is not set in configs/config_npt_bulk.env"
+    missing_required=1
+elif [[ ! -x "${LMP_BIN}" ]]; then
+    echo "  [MISSING] LMP_BIN is not executable: ${LMP_BIN}"
+    missing_required=1
+else
+    echo "  [OK] LMP_BIN executable: ${LMP_BIN}"
+    if [[ -n "${LMP_LIBRARY_PATH:-}" ]]; then
+        export LD_LIBRARY_PATH="${LMP_LIBRARY_PATH}:${LD_LIBRARY_PATH:-}"
+    fi
+    LMP_REAL="$(readlink -f "${LMP_BIN}" 2>/dev/null || printf "%s" "${LMP_BIN}")"
+    LMP_DIR="$(cd "$(dirname "${LMP_REAL}")" && pwd)"
+    LMP_PREFIX="$(cd "${LMP_DIR}/.." && pwd)"
+    for libdir in "${LMP_PREFIX}/lib" "${LMP_PREFIX}/lib64"; do
+        if [[ -d "${libdir}" ]]; then
+            export LD_LIBRARY_PATH="${libdir}:${LD_LIBRARY_PATH:-}"
+        fi
+    done
+    if command -v ldd >/dev/null 2>&1; then
+        LDD_OUTPUT="$(ldd "${LMP_BIN}" 2>&1 || true)"
+        if grep -q "not found" <<< "${LDD_OUTPUT}"; then
+            echo "  [MISSING] LAMMPS runtime libraries are unresolved"
+            grep "not found" <<< "${LDD_OUTPUT}"
+            missing_required=1
+        else
+            echo "  [OK] LAMMPS shared libraries resolve"
+        fi
+    else
+        echo "  [WARN] ldd not available; shared library check skipped"
+    fi
+fi
+echo ""
+
+echo "[4/5] Ensuring output directories exist..."
 mkdir -p "${WORKFLOW_DIR}/runs/logs" "${WORKFLOW_DIR}/runs/data"
 mkdir -p "${WORKFLOW_DIR}/npbc_production/logs"
 mkdir -p "${WORKFLOW_DIR}/pbc_production/logs"
@@ -77,7 +138,7 @@ resolve_bias_path() {
     printf "%s" "${WORKFLOW_DIR}/npbc_production/${raw_path}"
 }
 
-echo "[3/3] Validating NPBC bias readiness..."
+echo "[5/5] Validating NPBC bias readiness..."
 NPBC_READY="no"
 NPBC_VDWPARM_RESOLVED=""
 NPBC_GAU_RESOLVED=""
