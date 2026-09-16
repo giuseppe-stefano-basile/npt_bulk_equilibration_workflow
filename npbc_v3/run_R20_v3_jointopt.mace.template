@@ -1,0 +1,127 @@
+# R20 NPBC v3 coupled l=0,1,2 response optimizer
+# Requires custom LAMMPS style cavity/meanfield/v3.
+# Start from the stationary-validated v2 update-80 restart.
+
+log water_npbc_R20_v3_jointopt.log
+units               metal
+atom_style          molecular
+atom_modify         map yes
+newton              on
+dimension           3
+boundary            f f f
+
+variable model_file       string "__MODEL_FILE__"
+variable vdwparm_file     string "__VDWPARM_FILE__"
+variable gaufile_u0       string "__U0_FILE__"
+variable gaufile_u1       string "__U1_FILE__"
+variable gaufile_u2       string "__U2_FILE__"
+
+variable gauout_file      string "./gau_R20_v3_jointopt.out"
+variable p1out_file       string "./p1_R20_v3_jointopt.out"
+variable p2out_file       string "./p2_R20_v3_jointopt.out"
+variable densfile_out     string "./dens_shells_R20_v3_jointopt.dat"
+variable traj_out         string "./traj_R20_v3_jointopt.dump"
+
+variable R                equal 20.0
+variable rho0             equal 0.037242
+variable dr               equal 0.25
+variable nl               equal 81
+variable vdw_scale        equal 0.0005
+variable T                equal 300.0
+variable dt               equal 0.001
+variable tdamp            equal 0.1
+
+# Ten 100-ps response windows plus 10 ps after the tenth update.
+variable opt_steps        index 1010000
+variable thermo_stride    index 500
+variable dump_stride      index 5000
+variable dens_stride      index 1000
+
+read_restart __RESTART_UPDATE80__
+timestep ${dt}
+reset_timestep 0
+
+pair_style mliap unified ${model_file} 0
+pair_coeff * * O H
+
+group water type 1 2
+group mobile union water
+compute com_w mobile com
+variable rcom_w equal sqrt(c_com_w[1]^2+c_com_w[2]^2+c_com_w[3]^2)
+
+# Preserve the mechanically validated v2 dynamics while testing only the new l=1 channel.
+fix wall mobile cavity/reflect/com sphere 0.0 0.0 0.0 ${R} 0
+fix nvt_all mobile nvt temp ${T} ${T} ${tdamp}
+fix rmom all momentum 10 linear 1 1 1
+
+# U = U0(r) + U1(r) P1(c) + U2(r) P2(c)
+fix mf mobile cavity/meanfield/v3 sphere 0.0 0.0 0.0 ${R} ${rho0} ${dr} ${nl} &
+        vdwparm ${vdwparm_file} &
+        gauout ${gauout_file} &
+        vdw_scale ${vdw_scale} &
+        opt yes &
+        update response &
+        gaufile ${gaufile_u0} &
+        p1 yes &
+        p1_otype 1 &
+        p1_htype 2 &
+        p1_rmin 17.0 &
+        p1_scale ${vdw_scale} &
+        p1file ${gaufile_u1} &
+        p1out ${p1out_file} &
+        p1_eta 0.05 &
+        p1_lambda_l2 0.002 &
+        p1_lambda_smooth 1.0 &
+        p1_delta_max 1.00 &
+        p1_ghost copy &
+        p2 yes &
+        p2_otype 1 &
+        p2_htype 2 &
+        p2_rmin 17.0 &
+        p2_scale ${vdw_scale} &
+        p2file ${gaufile_u2} &
+        p2out ${p2out_file} &
+        p2_eta 0.05 &
+        p2_lambda_l2 0.002 &
+        p2_lambda_smooth 1.0 &
+        p2_delta_max 1.00 &
+        p2_ghost copy &
+        write_every 1 &
+        dens yes &
+        dens_every ${dens_stride} &
+        densfile ${densfile_out} &
+        response_temp 300.0 &
+        response_sample_every 500 &
+        response_update_every 100000 &
+        response_eta 0.05 &
+        response_lambda_l2 0.002 &
+        response_lambda_smooth 1.0 &
+        response_density_floor_rel 0.02 &
+        response_p1_floor 0.02 &
+        response_p2_floor 0.02 &
+        response_weight_mode sem &
+        response_sem_lag1 yes &
+        response_delta_max 1.50 &
+        response_converge no &
+        response_freeze no &
+        response_conv_min_samples 100 &
+        vdw_exclude_last_groups 1 &
+        vdw_zero_excluded no
+
+thermo_style custom step time temp v_rcom_w f_mf pe ke etotal press f_wall f_wall[1] f_wall[2]
+thermo ${thermo_stride}
+thermo_modify flush yes
+
+dump dopt mobile custom ${dump_stride} ${traj_out} id mol type x y z
+dump_modify dopt sort id append no
+restart 100000 restart_R20_v3_jointopt_*.lammps
+
+run ${opt_steps}
+
+write_restart ./restart_R20_v3_jointopt_final.lammps
+write_data ./water_R20_v3_jointopt_final.data
+
+print ">>> R20 V3 joint l=0,1,2 optimization block complete"
+print ">>> U0: ${gaufile_u0}"
+print ">>> U1: ${gaufile_u1}"
+print ">>> U2: ${gaufile_u2}"
